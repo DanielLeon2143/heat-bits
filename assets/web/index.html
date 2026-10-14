@@ -156,6 +156,44 @@
     display: flex; align-items: center; justify-content: center; font-size: calc(13px * var(--fs, 1)); line-height: 1; color: var(--ink-soft);
   }
   .add-habit-item:hover .add-habit-plus { border-color: var(--accent); color: var(--accent); border-style: solid; }
+  /* Help: a button under the New habit box, or a ? under the + when the sidebar is collapsed */
+  .help-link { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 10px; padding: 7px 10px; font-size: calc(12.5px * var(--fs, 1)); }
+  .help-q {
+    width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center; font-size: calc(10.5px * var(--fs, 1)); font-weight: 700; line-height: 1;
+  }
+  .app.collapsed .help-link { display: none; }
+  .habit-item.help-item { display: none; color: var(--ink-soft); }
+  .app.collapsed .habit-item.help-item { display: flex; padding: 4px 0; }
+  .help-item .help-q { width: 18px; height: 18px; }
+  .help-item:hover { color: var(--accent); }
+
+  /* guided tour: a highlight around one thing at a time, and a card explaining it */
+  .tour { position: fixed; inset: 0; z-index: 1000; display: none; }
+  .tour.open { display: block; }
+  .tour-shade { position: absolute; inset: 0; }
+  .tour.no-target .tour-shade { background: rgba(0, 0, 0, 0.55); }
+  .tour-spot {
+    position: fixed; border-radius: calc(var(--radius) + 4px); pointer-events: none;
+    box-shadow: 0 0 0 2px var(--accent), 0 0 0 9999px rgba(0, 0, 0, 0.55);
+    transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease;
+  }
+  .tour.no-target .tour-spot { display: none; }
+  .tour-card {
+    position: fixed; width: calc(340px * max(1, var(--fs, 1))); max-width: calc(100vw - 24px); box-sizing: border-box;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--border-strong); border-radius: var(--radius);
+    padding: 16px 18px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+  .tour-count { font-size: calc(11px * var(--fs, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); margin-bottom: 6px; }
+  .tour-card h3 { font-family: var(--font-head); font-size: calc(16px * var(--fs, 1)); margin-bottom: 6px; }
+  .tour-text { font-size: calc(13.5px * var(--fs, 1)); line-height: 1.5; color: var(--ink); }
+  .tour-text b { font-weight: 600; }
+  .tour-extra:not(:empty) { margin-top: 12px; font-size: calc(12.5px * var(--fs, 1)); color: var(--ink-soft); }
+  .tour-extra .ghost-btn { width: 100%; }
+  .tour-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .tour-actions .tour-skip { margin-right: auto; border: none; background: none; padding: 9px 2px; color: var(--ink-soft); }
+  .tour-actions .tour-skip:hover { color: var(--ink); }
+  .tour-actions .primary-btn, .tour-actions .ghost-btn { padding: 8px 14px; }
 
   /* new habit form */
   .new-habit {
@@ -1402,6 +1440,7 @@
       <input type="text" class="field hidden" id="newHabitUnit" placeholder="Measurement type (e.g. km, pages)" maxlength="20">
       <button class="primary-btn" id="addHabitBtn">Add habit</button>
     </div>
+    <button class="ghost-btn help-link" id="helpOpenBtn" title="Show the tour again"><span class="help-q">?</span>Help &amp; tour</button>
 
     <div class="sidebar-foot">
       <button class="ghost-btn export-link" id="exportOpenBtn" title="Export or import your data">Export / import</button>
@@ -1422,6 +1461,22 @@
 </div>
 
 <div class="tooltip" id="tooltip"></div>
+
+<div class="tour" id="tour">
+  <div class="tour-shade"></div>
+  <div class="tour-spot"></div>
+  <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="tour-count" id="tourCount"></div>
+    <h3 id="tourTitle"></h3>
+    <div class="tour-text" id="tourText"></div>
+    <div class="tour-extra" id="tourExtra"></div>
+    <div class="tour-actions">
+      <button class="tour-skip" id="tourSkip">Skip tour</button>
+      <button class="ghost-btn" id="tourBack">Back</button>
+      <button class="primary-btn" id="tourNext">Next</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="dayModalBackdrop">
   <div class="modal day-modal">
@@ -2294,6 +2349,13 @@
     add.innerHTML = '<span class="add-habit-plus">+</span>';
     add.addEventListener("click", openNewHabitModal);
     list.appendChild(add);
+
+    var help = document.createElement("li");
+    help.className = "habit-item help-item";
+    help.title = "Help & tour";
+    help.innerHTML = '<span class="help-q">?</span>';
+    help.addEventListener("click", function () { startTour(); });
+    list.appendChild(help);
 
     var sel = selectedHabit();
     renderBottomNav();
@@ -3933,6 +3995,13 @@
           '</div></div>' +
       '</div>' +
 
+      // ---- Help (phones have no sidebar, so the tour is reachable from here too) ----
+      '<div class="graph-card settings-card">' +
+        '<div class="graph-head"><span class="graph-name">Help</span></div>' +
+        '<div class="settings-row"><div class="settings-label">Tour<span>A short walk through the main screens.</span></div>' +
+          '<div class="settings-actions"><button class="ghost-btn" id="settingsTourBtn">Show the tour</button></div></div>' +
+      '</div>' +
+
       // ---- Settings backup ----
       '<div class="graph-card settings-card">' +
         '<div class="graph-head"><span class="graph-name">Settings file</span></div>' +
@@ -4077,6 +4146,7 @@
       state.allColor = "#4C68D6";
       saveState(); rerender();
     });
+    document.getElementById("settingsTourBtn").addEventListener("click", function () { startTour(); });
     renderSyncCard();
   }
 
@@ -7511,12 +7581,207 @@
   sidebarEl.addEventListener("mouseenter", function () { peek(true); });
   sidebarEl.addEventListener("mouseleave", function () { peek(false); });
 
+  // ---------------- guided tour ----------------
+  // One step at a time: go to a page, highlight one thing, explain it in a card.
+  // Targets are looked up again every time because render() rebuilds the page often.
+  var tourEl = document.getElementById("tour");
+  var tour = null; // { steps, i, from, timer }
+  var TOUR_PAGES = [ALL, CAL, THISWEEK, GRAPHS, SETTINGS];
+
+  function tourFind(sel) {
+    var list = [].concat(sel || []);
+    for (var i = 0; i < list.length; i++) {
+      var el = document.querySelector(list[i]);
+      var r = el && el.getBoundingClientRect();
+      if (r && r.width > 0 && r.height > 0) return el;
+    }
+    return null;
+  }
+  function tourSteps() {
+    var app = document.querySelector(".app");
+    var phone = app.classList.contains("phone"), collapsed = app.classList.contains("collapsed");
+    var habit = state.habits[0];
+    var hasDemo = state.habits.some(function (h) { return h.demo; });
+    var unpaired = HB && HB.role === "client" && !(hbStatus && hbStatus.paired);
+    var tap = phone ? "Tap" : "Click";
+    var steps = [];
+
+    steps.push({
+      title: "Welcome to Heat-Bits",
+      text: "Every habit gets a heat map: each square is a day, and it fills in when you do the habit." +
+        (unpaired ? " This phone keeps your habits in sync with Heat-Bits on your PC, over your Wi-Fi."
+          : hasDemo ? " We added two example habits so you can look around." : " Here's a quick look around.")
+    });
+    if (unpaired) steps.push({
+      page: SETTINGS, target: "#syncCard", title: "Connect to your PC",
+      text: "On your PC, open Heat-Bits → <b>Settings</b> → <b>Devices &amp; sync</b>. Then tap <b>Scan QR code</b> here and point the camera at it. Both need to be on the same Wi-Fi."
+    });
+    steps.push({
+      page: THISWEEK, target: "#weekWrap", title: "Your week",
+      text: phone
+        ? "Everything with a time shows up here, hour by hour. Hold a box for half a second, then drag it to move it. Drag the bar at its bottom to change how long it takes. Tap a box twice to edit it."
+        : "Everything with a time shows up here, hour by hour. Click an empty slot to add something. Drag a box to move it, and drag its bottom edge to change how long it takes. Double-click a box to edit it."
+    });
+    steps.push({
+      page: THISWEEK, target: "#heatmapWrap", title: "Your year",
+      text: "Each square is a day. Darker squares are days you did more of your habits, and a thin outline marks a perfect day. " +
+        tap + " a past day to check off anything you forgot."
+    });
+    steps.push({
+      page: THISWEEK, target: "#allHabitRows", title: "Today",
+      text: "Today's habits. " + tap + " <b>Complete</b> when you've done one: it leaves the list and today's square fills in. The bar shows how close you are to your initial goal."
+    });
+    if (phone) {
+      steps.push({
+        target: "#bottomNav", title: "Getting around",
+        text: "Switch pages here. <b>Habits</b> opens all your habits: tap one to see its own page, or <b>New habit</b> to add one. Pick <b>Yes / No</b>, or <b>Measurable</b> to log a number like km or pages."
+      });
+    } else {
+      if (habit) steps.push({
+        page: habit.id, target: "#dayToggleRow", title: "A habit's own page",
+        text: "Each habit has its own page with streaks and its own heat map. Pick the days it repeats here: other days never break your streak. Your first target is 14 days in a row, and the pencil changes it."
+      });
+      steps.push({
+        target: collapsed ? ".add-habit-item" : ".new-habit", title: "Add your own habit",
+        text: (collapsed ? "Click <b>+</b> to add a habit." : "Type a name here.") +
+          " Pick <b>Yes / No</b>, or <b>Measurable</b> to log a number like km or pages."
+      });
+      steps.push({
+        page: CAL, target: ["#calGrid", "#weekWrap"], title: "Calendar",
+        text: "The whole month at a glance. Switch to <b>Week</b> to plan by the hour: click an empty slot to add a habit, activity, reminder or to-do."
+      });
+      steps.push({
+        page: GRAPHS, target: "#main .graph-card", title: "Graphs",
+        text: "See how you're doing over time: where your calendar time goes, how often you complete your habits, and each habit's history."
+      });
+      var host = HB && HB.role === "host";
+      steps.push({
+        page: SETTINGS, target: host ? "#syncCard" : "#main .settings-card .settings-row", title: "Settings",
+        text: host
+          ? "Pair your Android phone here, or scan the second code to download the app. Further down: colors, font size and the heat map layout."
+          : "Make it yours: colors, light or dark, font size and the heat map layout."
+      });
+    }
+    steps.push({
+      page: phone ? SETTINGS : null, target: phone ? "#settingsTourBtn" : (collapsed ? ".help-item" : "#helpOpenBtn"),
+      title: "That's it",
+      text: "You can open this tour again any time from " + (phone ? "<b>Settings</b>." : "<b>Help</b>."),
+      extra: hasDemo ? "removeDemo" : null
+    });
+    return steps;
+  }
+
+  function startTour() {
+    closeHabitSheet();
+    setSetting("tutorialSeen", true);
+    // already open: start over in place (keeps the one history entry and the page to return to)
+    var again = tour;
+    if (again) clearInterval(again.timer);
+    tour = { steps: tourSteps(), i: 0, from: again ? again.from : state.selectedId };
+    tourEl.classList.add("open");
+    if (!again) try { history.pushState({ hbTour: 1 }, ""); } catch (e) {} // Android's back button closes it
+    tour.timer = setInterval(tourPlace, 150); // keeps up with re-renders and late layout
+    tourShow();
+  }
+  function endTour(fromBack) {
+    if (!tour) return;
+    clearInterval(tour.timer);
+    var from = tour.from;
+    tour = null;
+    tourEl.classList.remove("open");
+    if (!fromBack && history.state && history.state.hbTour) history.back();
+    // back to the page the tour started on
+    if (from !== state.selectedId && (TOUR_PAGES.indexOf(from) !== -1 || getHabit(from))) {
+      state.selectedId = from; saveState(); render();
+    }
+  }
+  function tourShow() {
+    var st = tour.steps[tour.i], last = tour.i === tour.steps.length - 1;
+    if (st.page && state.selectedId !== st.page) { state.selectedId = st.page; saveState(); render(); }
+    document.getElementById("tourCount").textContent = (tour.i + 1) + " of " + tour.steps.length;
+    document.getElementById("tourTitle").textContent = st.title;
+    document.getElementById("tourText").innerHTML = st.text;
+    document.getElementById("tourBack").style.visibility = tour.i ? "visible" : "hidden";
+    document.getElementById("tourSkip").style.visibility = last ? "hidden" : "visible";
+    document.getElementById("tourNext").textContent = last ? "Done" : "Next";
+    var extra = document.getElementById("tourExtra");
+    extra.innerHTML = st.extra === "removeDemo" && state.habits.some(function (h) { return h.demo; })
+      ? '<button class="ghost-btn" id="tourRemoveDemo">Remove the example habits</button>' : "";
+    var rm = document.getElementById("tourRemoveDemo");
+    if (rm) rm.addEventListener("click", function () {
+      state.habits = state.habits.filter(function (h) { return !h.demo; });
+      if (TOUR_PAGES.indexOf(state.selectedId) === -1 && !getHabit(state.selectedId)) state.selectedId = THISWEEK;
+      if (TOUR_PAGES.indexOf(tour.from) === -1 && !getHabit(tour.from)) tour.from = THISWEEK;
+      saveState(); render();
+      extra.textContent = "Removed. Add your own habits whenever you're ready.";
+    });
+    var el = tourFind(st.target);
+    // tall targets scroll to their top, so the start of what's explained is on screen
+    if (el && el.id !== "bottomNav") el.scrollIntoView({ block: el.offsetHeight > window.innerHeight * 0.6 ? "start" : "center" });
+    tourPlace();
+    document.getElementById("tourNext").focus();
+  }
+  function tourPlace() {
+    if (!tour) return;
+    var el = tourFind(tour.steps[tour.i].target);
+    var spot = tourEl.querySelector(".tour-spot"), card = tourEl.querySelector(".tour-card");
+    var vw = window.innerWidth, vh = window.innerHeight, m = 12;
+    var cw = card.offsetWidth, ch = card.offsetHeight;
+    tourEl.classList.toggle("no-target", !el);
+    if (!el) {
+      card.style.left = Math.max(m, (vw - cw) / 2) + "px";
+      card.style.top = Math.max(m, (vh - ch) / 2) + "px";
+      return;
+    }
+    // the highlight, kept on screen even when the target is taller than the window
+    var r = el.getBoundingClientRect(), pad = 6;
+    var x1 = Math.max(4, r.left - pad), y1 = Math.max(4, r.top - pad);
+    var x2 = Math.min(vw - 4, r.right + pad), y2 = Math.min(vh - 4, r.bottom + pad);
+    spot.style.left = x1 + "px"; spot.style.top = y1 + "px";
+    spot.style.width = Math.max(0, x2 - x1) + "px"; spot.style.height = Math.max(0, y2 - y1) + "px";
+    // the card goes below, above, beside (wide screens only), or else over the bottom of the target
+    var nav = document.getElementById("bottomNav");
+    var bottom = vh - m - (el !== nav && nav.offsetHeight ? nav.offsetHeight : 0);
+    var midX = Math.min(Math.max(m, (x1 + x2) / 2 - cw / 2), vw - cw - m), left = midX, top;
+    var sideTop = Math.min(Math.max(m, y1), bottom - ch);
+    if (y2 + m + ch <= bottom) top = y2 + m;
+    else if (y1 - m - ch >= m) top = y1 - m - ch;
+    else if (vw > 700 && x2 + m + cw <= vw - m) { left = x2 + m; top = sideTop; }
+    else if (vw > 700 && x1 - m - cw >= m) { left = x1 - m - cw; top = sideTop; }
+    else top = Math.max(m, bottom - ch);
+    card.style.left = left + "px"; card.style.top = top + "px";
+  }
+  function tourGo(d) {
+    if (!tour) return;
+    var n = tour.i + d;
+    if (n < 0) return;
+    if (n >= tour.steps.length) { endTour(); return; }
+    tour.i = n;
+    tourShow();
+  }
+  document.getElementById("tourNext").addEventListener("click", function () { tourGo(1); });
+  document.getElementById("tourBack").addEventListener("click", function () { tourGo(-1); });
+  document.getElementById("tourSkip").addEventListener("click", function () { endTour(); });
+  document.getElementById("helpOpenBtn").addEventListener("click", function () { startTour(); });
+  window.addEventListener("popstate", function () { if (tour) endTour(true); });
+  window.addEventListener("resize", tourPlace);
+  window.addEventListener("scroll", tourPlace, true);
+  document.addEventListener("keydown", function (e) {
+    if (!tour) return;
+    if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); endTour(); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); tourGo(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); tourGo(-1); }
+  }, true);
+
+
   // ---------------- first run seed ----------------
   // (a phone running the app starts empty: pairing brings the PC's habits over)
-  if (state.habits.length === 0 && !(HB && HB.role === "client")) {
+  // only once per device: someone who removed every habit shouldn't get the examples back
+  var firstRun = state.habits.length === 0 && !setting("demoAdded", false);
+  if (firstRun && !(HB && HB.role === "client")) {
     var now = Date.now();
-    var walk = { id: uid(), name: "Morning walk", type: "boolean", unit: "", color: PALETTE[0], createdAt: now - 45 * DAY_MS, completions: {} };
-    var water = { id: uid(), name: "Water", type: "measurable", unit: "glasses", color: PALETTE[2], createdAt: now - 45 * DAY_MS, completions: {} };
+    var walk = { id: uid(), name: "Morning walk", type: "boolean", unit: "", color: PALETTE[0], createdAt: now - 45 * DAY_MS, completions: {}, demo: true };
+    var water = { id: uid(), name: "Water", type: "measurable", unit: "glasses", color: PALETTE[2], createdAt: now - 45 * DAY_MS, completions: {}, demo: true };
     for (var i = 0; i < 45; i++) {
       var d = new Date(now - i * DAY_MS);
       if (Math.random() < 0.62) walk.completions[dateKey(d)] = true;
@@ -7524,7 +7789,7 @@
     }
     state.habits.push(walk, water);
     state.selectedId = ALL;
-    saveState();
+    setSetting("demoAdded", true);
   }
   // open on the page chosen in Settings → Always open on (This Week by default)
   (function () {
@@ -7539,6 +7804,8 @@
 
   render();
   if (HB) { hbStartEvents(); hbPointerDrag(); }
+  // the tour opens by itself only on a fresh start; after that it's under Help
+  if (firstRun && !setting("tutorialSeen", false)) setTimeout(function () { startTour(); }, 700);
 })();
 </script>
 </body>
