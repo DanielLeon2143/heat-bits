@@ -60,6 +60,18 @@ void _windows() {
   s = s.replaceAll('Win32Window::Size size(1280, 720);', 'Win32Window::Size size(1400, 900);');
   main.writeAsStringSync(s);
 
+  // flutter_inappwebview_windows still uses <experimental/coroutine>, which newer
+  // Visual Studio versions (2026+) refuse to compile unless told to allow it
+  final cmake = File('windows/CMakeLists.txt');
+  if (cmake.existsSync()) {
+    var c = cmake.readAsStringSync();
+    const flag = '_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS';
+    if (!c.contains(flag)) {
+      c = c.replaceFirst('add_definitions(-DUNICODE -D_UNICODE)', 'add_definitions(-DUNICODE -D_UNICODE -D$flag)');
+      cmake.writeAsStringSync(c);
+    }
+  }
+
   final rc = File('windows/runner/Runner.rc');
   if (rc.existsSync()) {
     var r = rc.readAsStringSync();

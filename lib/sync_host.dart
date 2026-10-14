@@ -15,7 +15,7 @@ import 'store.dart';
 ///   POST /hb/pair    {code, deviceId, deviceName} -> {token, serverId, serverName}
 ///   POST /hb/sync    {first, base, doc} -> {doc, version}       (needs the token)
 ///   GET  /hb/ws      WebSocket: the PC says "changed" so phones sync right away
-///   UDP  47812       answers "HEATBITS_DISCOVER <id>" so a phone can find the PC after its IP changes
+///   UDP  47812       answers `HEATBITS_DISCOVER <id>` so a phone can find the PC after its IP changes
 class SyncHost {
   SyncHost(this.app);
 
@@ -161,6 +161,8 @@ class SyncHost {
   }
 
   void _seen(String id) {
+    // a removed phone's socket closes after it's gone: don't bring it back
+    if (!_devices.containsKey(id)) return;
     final d = asMap(_devices[id]);
     d['lastSeen'] = DateTime.now().millisecondsSinceEpoch;
     _devices[id] = d;

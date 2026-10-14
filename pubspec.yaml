@@ -9,8 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # shows the shared Heat-Bits interface (assets/web/index.html) on Windows and Android
-  flutter_inappwebview: ^6.1.5
+  # shows the shared Heat-Bits interface (assets/web/index.html) on Windows and Android.
+  # 6.2 beta: the 6.1.x Android part no longer builds with the current Android Gradle Plugin
+  flutter_inappwebview: 6.2.0-beta.3
   # where the app keeps its data file
   path_provider: ^2.1.5
   # pairing QR code (drawn on the PC) and scanner (on the phone)
@@ -23,6 +24,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.2
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

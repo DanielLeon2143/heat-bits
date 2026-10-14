@@ -67,10 +67,27 @@ flutter pub get
 - Lint: `flutter analyze`
 - Run: `flutter run -d windows`, or `flutter run -d <android device>`
 - Release build of both: `powershell -ExecutionPolicy Bypass -File build.ps1`
-- CI: `.github/workflows/build.yml` (Flutter **3.27.4**, runs `flutter test` and builds the APK and the Windows zip on push to main/master)
+- CI: `.github/workflows/build.yml` (Flutter **3.47.7**, runs `flutter test` and builds the APK and the Windows zip on push to main/master)
 
-Native changes (manifest, gradle, runner) **go in `tool/prepare.dart`**, never in the generated folders,
+Native changes (manifest, gradle, runner, CMake) **go in `tool/prepare.dart`**, never in the generated folders,
 because those get recreated on every CI run.
+
+### Local toolchain on this PC
+- Flutter 3.47.7 at `C:\src\flutter`, portable JDK 17 at `C:\src\jdk17` (set with `flutter config --jdk-dir`;
+  the system `java` is 8, which is too old), Android SDK at `%LOCALAPPDATA%\Android\Sdk` (command-line
+  tools only, no Android Studio), `nuget.exe` at `C:\src\nuget`, VS Build Tools 2026.
+- `adb` is at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` and isn't on PATH.
+
+### Why some versions are pinned
+- `flutter_inappwebview: 6.2.0-beta.3` (exact). The 6.1.5 Android part uses `proguard-android.txt`, which
+  AGP 9 rejects. Keep the whole inappwebview family on the same beta. Don't use `^`, because it pulls mixed versions.
+- `prepare.dart` adds `-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` to `windows/CMakeLists.txt`.
+  Without it, MSVC 14.5x (VS 2026) errors out on the plugin's `<experimental/coroutine>`.
+
+### Testing the sync without a phone
+Run the release exe, then use a script that acts as a phone. Read the key from `GET 127.0.0.1:47813/`
+(`__HB_HOST__.key`) and the pair code from `/api/sync/status`. Then `POST /hb/pair`, `POST /hb/sync`
+and open `ws://<ip>:47811/hb/ws?token=…`. Remove the test device afterwards with `/api/devices/remove`.
 
 ## Conventions
 - Error strings and README text are written for non-technical users. Use plain sentences and say what to do next

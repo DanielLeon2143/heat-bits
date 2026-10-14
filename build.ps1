@@ -9,6 +9,11 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
   Write-Host "Flutter isn't installed (or not on PATH). See README.md -> 'Build on your own PC'." -ForegroundColor Red
   exit 1
 }
+# the Windows web view plugin downloads its parts with nuget.exe
+if (-not (Get-Command nuget -ErrorAction SilentlyContinue)) {
+  Write-Host "nuget.exe isn't on PATH. Download it from https://dist.nuget.org/win-x86-commandline/latest/nuget.exe and put it in a folder on PATH." -ForegroundColor Red
+  exit 1
+}
 
 flutter create --platforms=windows,android --org com.heatbits --project-name heat_bits .
 dart run tool/prepare.dart

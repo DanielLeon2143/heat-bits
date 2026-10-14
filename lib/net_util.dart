@@ -16,7 +16,9 @@ Future<List<String>> localAddresses() async {
       final name = i.name.toLowerCase();
       // virtual adapters (VPNs, WSL, VirtualBox, Docker) are rarely what the phone can reach
       final virtual = name.contains('vethernet') || name.contains('virtual') || name.contains('vmware') ||
-          name.contains('docker') || name.contains('wsl') || name.contains('loopback');
+          name.contains('docker') || name.contains('wsl') || name.contains('loopback') ||
+          name.contains('vpn') || name.contains('hamachi') || name.contains('zerotier') ||
+          name.contains('tailscale') || name.contains('wireguard');
       for (final a in i.addresses) {
         if (a.address.startsWith('169.254.')) continue;
         if (virtual) continue;
