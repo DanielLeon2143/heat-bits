@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'merge.dart';
+import 'net_util.dart';
 import 'scan_screen.dart';
 import 'store.dart';
 import 'sync_client.dart';
@@ -117,6 +118,7 @@ class AppController {
           'port': host!.port,
           'devices': host!.deviceList(),
           'error': host!.error,
+          'downloadUrl': androidDownloadUrl,
         },
         if (client != null) ...client!.status(),
       };

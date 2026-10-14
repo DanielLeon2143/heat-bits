@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'app_controller.dart';
 import 'merge.dart';
 import 'net_util.dart';
+import 'qr_svg.dart';
 import 'store.dart';
 
 /// Serves the Heat-Bits interface to the app's own web view, on 127.0.0.1 only.
@@ -155,6 +156,14 @@ class UiServer {
           res.headers.contentType = ContentType('image', 'svg+xml', charset: 'utf-8');
           res.headers.set('cache-control', 'no-store');
           res.add(utf8.encode(app.host?.qrSvgText() ?? '<svg xmlns="http://www.w3.org/2000/svg"/>'));
+          await res.close();
+          return;
+        }
+      case '/api/download/qr.svg':
+        {
+          final res = req.response;
+          res.headers.contentType = ContentType('image', 'svg+xml', charset: 'utf-8');
+          res.add(utf8.encode(qrSvg(androidDownloadUrl)));
           await res.close();
           return;
         }

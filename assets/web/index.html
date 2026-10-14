@@ -797,6 +797,7 @@
 
   /* settings additions */
   .sync-host { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .sync-download { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
   .sync-qr { width: 168px; height: 168px; flex: none; background: #fff; border-radius: var(--radius); border: 1px solid var(--border); image-rendering: pixelated; }
   .sync-info { flex: 1 1 260px; min-width: 0; }
   .sync-title { font-weight: 600; font-size: calc(14px * var(--fs, 1)); margin-bottom: 6px; }
@@ -1943,7 +1944,20 @@
             '<div class="sync-manual">No camera? Type <b>' + escapeHtml(addrs[0]) + '</b> and the code <b class="sync-code">' + escapeHtml(s.code || "") + '</b>.</div>' +
             '<button class="ghost-btn sync-small" id="syncNewCode" title="Make a new pairing code (phones already paired stay paired)">New code</button>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        (s.downloadUrl ?
+        '<div class="sync-host sync-download">' +
+          '<img class="sync-qr" alt="QR code to download the Android app" src="/api/download/qr.svg?k=' + encodeURIComponent(HB.key) + '">' +
+          '<div class="sync-info">' +
+            '<div class="sync-title">Get the Android app</div>' +
+            '<ol class="sync-steps">' +
+              '<li>Scan this code with the phone\'s camera to download <b>Heat-Bits.apk</b>.</li>' +
+              '<li>Open the download and tap <b>Install</b>. If Android asks, allow installing apps from your browser.</li>' +
+              '<li>Then scan the pairing code above from the app.</li>' +
+            '</ol>' +
+            '<div class="sync-manual">Or open <b>' + escapeHtml(s.downloadUrl.replace(/^https:\/\//, "").replace(/\/releases\/.*/, "/releases")) + '</b> on the phone.</div>' +
+          '</div>' +
+        '</div>' : '');
       var devs = s.devices || [];
       html += '<div class="sync-devices"><div class="sync-sub">Paired phones</div>' +
         (devs.length ? devs.map(function (d) {

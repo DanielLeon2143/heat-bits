@@ -1,6 +1,6 @@
 # Builds the Windows app and the Android APK every time you push to GitHub
 # (or when you press "Run workflow" on the Actions tab).
-# Download the results from the run's "Artifacts" section.
+# Download the results from the run's "Artifacts" section, or (on a push) from the Releases page.
 name: Build Heat-Bits
 
 on:
@@ -58,3 +58,26 @@ jobs:
         with:
           name: Heat-Bits-Windows
           path: build/windows/x64/runner/Release/
+
+  # Publishes both builds as a GitHub release. The PC's Settings page shows a QR code
+  # for releases/latest/download/Heat-Bits.apk, so that link always gets the newest phone app.
+  release:
+    needs: [android, windows]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Zip the Windows app
+        run: cd Heat-Bits-Windows && zip -r ../Heat-Bits-Windows.zip .
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Heat-Bits build ${{ github.run_number }}
+          body: |
+            Phone: download Heat-Bits.apk on the phone and open it.
+            PC: download Heat-Bits-Windows.zip, unzip it and run heat_bits.exe.
+          files: |
+            Heat-Bits-Android/Heat-Bits.apk
+            Heat-Bits-Windows.zip

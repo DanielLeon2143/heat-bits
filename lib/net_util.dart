@@ -7,6 +7,9 @@ const int syncPort = 47811; // PC: pairing + sync (HTTP + WebSocket)
 const int discoveryPort = 47812; // PC: answers "where are you?" broadcasts (UDP)
 const int uiPort = 47813; // both: serves the interface to the app's own web view (localhost only)
 
+/// Where phones download the Android app (the newest GitHub release). Shown as a QR code on the PC.
+const String androidDownloadUrl = 'https://github.com/DanielLeon2143/heat-bits/releases/latest/download/Heat-Bits.apk';
+
 /// This device's IPv4 addresses on the local network (Wi-Fi / Ethernet).
 Future<List<String>> localAddresses() async {
   try {
