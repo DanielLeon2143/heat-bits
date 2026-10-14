@@ -1103,6 +1103,8 @@
   .week-allday-col { border-right: 1px solid var(--border); padding: 4px; display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; }
   .week-allday-col:last-child { border-right: none; }
   .week-allday-col.drag-over { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .week-allday-col { min-width: 0; }
+  .week-allday-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .week-allday-chip {
     font-size: calc(10px * var(--fs, 1)); padding: 2px 6px; border-radius: 8px; border: 1.3px solid;
     background: var(--surface); color: var(--ink-soft); cursor: grab; white-space: nowrap;
@@ -1208,6 +1210,143 @@
   .app.phone .week-trackers { min-height: 0; }
   .app.phone .cal-view-toggle { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
   .app.phone .week-trackers-inner { position: static; }
+
+  /* sideways swipes change the month / week, not the browser history */
+  html, body { overscroll-behavior-x: none; }
+
+  /* phones: a tab bar along the bottom replaces the icon bar on top; the habits sit behind the grid tab */
+  .bottom-nav { display: none; }
+  .app.phone .sidebar { display: none; }
+  .app.phone ~ .bottom-nav {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  .bnav-btn {
+    background: none; border: none; color: var(--ink-soft); padding: 2px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bnav-icon {
+    width: 56px; height: 34px; border-radius: 17px;
+    display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+  }
+  .bnav-icon svg { width: 26px; height: 26px; }
+  .bnav-label { font-size: calc(11px * var(--fs, 1)); font-weight: 500; white-space: nowrap; }
+  .bnav-btn.active { color: var(--accent); }
+  .bnav-btn.active .bnav-icon { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .app.phone .main { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+
+  /* the habits sheet (opened from the grid tab) */
+  .sheet-backdrop {
+    position: fixed; inset: 0; z-index: 95; background: rgba(0,0,0,0.45);
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .sheet-backdrop.open { display: flex; }
+  .sheet {
+    width: 100%; max-width: 560px; max-height: 80vh; overflow-y: auto; box-sizing: border-box;
+    background: var(--surface); border: 1px solid var(--border-strong); border-bottom: none;
+    border-radius: 18px 18px 0 0; padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+    animation: sheet-up 0.18s ease-out;
+  }
+  @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .sheet-grabber { width: 40px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 0 auto 10px; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .sheet-head h3 { font-size: calc(18px * var(--fs, 1)); }
+  .habit-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .habit-tile {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 6px 10px; color: var(--ink); min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .habit-tile.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .habit-tile-icon {
+    width: 46px; height: 46px; border-radius: 12px; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-family: var(--font-head); font-weight: 700; font-size: calc(19px * var(--fs, 1));
+  }
+  .habit-tile-icon svg { width: 26px; height: 26px; }
+  .habit-tile-check {
+    position: absolute; right: -5px; bottom: -5px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--surface); color: var(--accent); border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1;
+  }
+  .habit-tile-name {
+    font-size: calc(12.5px * var(--fs, 1)); font-weight: 600; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .habit-tile-sub { font-size: calc(11px * var(--fs, 1)); color: var(--ink-soft); margin-top: -4px; }
+  .habit-tile.add-tile { background: none; border-style: dashed; color: var(--ink-soft); }
+  .habit-tile.add-tile .habit-tile-icon { color: var(--ink-soft); border: 1.5px dashed var(--border-strong); font-size: 24px; font-weight: 400; }
+
+  /* calendar: segmented Month / Week switch */
+  .cal-view-toggle.seg {
+    gap: 0; padding: 3px; border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px;
+  }
+  .cal-view-toggle.seg .view-toggle-btn { border: none; background: none; border-radius: 999px; padding: 6px 16px; }
+  .cal-view-toggle.seg .view-toggle-btn.active { background: var(--accent); color: #fff; }
+
+  /* month: today as a filled circle, a progress line for days that have passed */
+  .cal-day-num {
+    min-width: 22px; height: 22px; border-radius: 11px; padding: 0 4px; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center; margin: -2px 0 0 -2px;
+  }
+  .cal-cell.cal-today { border-color: var(--border); border-width: 1px; }
+  .cal-cell.cal-today .cal-day-num { background: var(--accent); color: #fff; }
+  .cal-cell.cal-perfect { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
+  .cal-progress {
+    position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px;
+    background: var(--border); overflow: hidden;
+  }
+  .cal-progress i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+
+  /* week: weekday over a date number, today filled, the picked day ringed */
+  .week-day-head {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; cursor: pointer; min-width: 0;
+  }
+  .wdh-name { font-size: calc(10.5px * var(--fs, 1)); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .wdh-num {
+    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-size: calc(15px * var(--fs, 1)); font-weight: 600; color: var(--ink);
+  }
+  .week-day-head.is-today { box-shadow: none; }
+  .week-day-head.is-today .wdh-num { background: var(--accent); color: #fff; }
+  .week-day-head.is-selected:not(.is-today) .wdh-num { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); }
+  .week-day-col.is-today { box-shadow: none; background-color: color-mix(in srgb, var(--accent) 5%, transparent); }
+
+  /* phone calendar: compact header, the whole week fits the screen width */
+  .app.phone .habit-head.cal-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .app.phone .cal-head .habit-sub { display: none; }
+  .app.phone .cal-head h2 { font-size: calc(22px * var(--fs, 1)); }
+  .app.phone .cal-view-toggle.seg { flex-wrap: nowrap; flex-shrink: 0; }
+  .app.phone .cal-panel { min-width: 0; flex-basis: auto; width: 100%; }
+  .app.phone .cal-detail { min-width: 0; flex-basis: auto; width: 100%; box-sizing: border-box; }
+  .app.phone .cal-nav { gap: 6px; }
+  .app.phone .cal-month-label { min-width: 0; flex: 1; font-size: calc(16px * var(--fs, 1)); }
+  .app.phone .cal-nav .year-btn { width: 36px; height: 36px; border-radius: 50%; }
+  .app.phone .cal-grid { gap: 3px; }
+  .app.phone .cal-cell { aspect-ratio: auto; min-height: 62px; padding: 4px 3px 9px; border-radius: 8px; gap: 4px; align-items: center; }
+  .app.phone .cal-day-num { margin: 0; font-size: calc(12.5px * var(--fs, 1)); }
+  .app.phone .cal-dots { justify-content: center; gap: 2px; }
+  .app.phone .cal-dot { width: 7px; height: 7px; border-radius: 50%; border-width: 1.3px; }
+  .app.phone .cal-dot-more { font-size: calc(8.5px * var(--fs, 1)); line-height: 7px; }
+  .app.phone .cal-badges { position: static; margin-top: auto; }
+  .app.phone .cal-progress { left: 6px; right: 6px; bottom: 4px; }
+  .app.phone .week-wrap { border-radius: 10px; }
+  .app.phone .week-day-head { padding: 5px 0; }
+  .app.phone .wdh-name { font-size: calc(9.5px * var(--fs, 1)); letter-spacing: 0; }
+  .app.phone .wdh-num { width: 26px; height: 26px; font-size: calc(13.5px * var(--fs, 1)); }
+  .app.phone .week-corner-label { font-size: calc(8.5px * var(--fs, 1)); text-align: center; }
+  .app.phone .week-allday-col { padding: 2px 1px; gap: 2px; min-width: 0; }
+  .app.phone .week-allday-chip {
+    display: block; width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis;
+    font-size: calc(8.5px * var(--fs, 1)); padding: 1px 3px; border-radius: 4px; border-width: 1px;
+  }
+  .app.phone .week-allday-chip svg { display: none; }
+  .app.phone .week-hour-label { font-size: calc(9px * var(--fs, 1)); padding-right: 4px; }
+  .app.phone .event-block { left: 1px; right: 1px; padding: 2px 3px; font-size: calc(9px * var(--fs, 1)); border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -1245,6 +1384,15 @@
   </aside>
 
   <main class="main" id="main"></main>
+</div>
+<nav class="bottom-nav" id="bottomNav"></nav>
+
+<div class="sheet-backdrop" id="habitSheetBackdrop">
+  <div class="sheet" role="dialog" aria-label="Habits">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head"><h3>Habits</h3><button class="ghost-btn" id="habitSheetClose">Close</button></div>
+    <div class="habit-tiles" id="habitTiles"></div>
+  </div>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
@@ -1542,6 +1690,12 @@
     'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle>' +
     '<polyline points="12 7 12 12 16 14"></polyline></svg>';
 
+  var GRID_SVG =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19" rx="3"></rect>' +
+    '<rect x="6.5" y="6.5" width="4.5" height="4.5" rx="1"></rect><rect x="13" y="6.5" width="4.5" height="4.5" rx="1"></rect>' +
+    '<rect x="6.5" y="13" width="4.5" height="4.5" rx="1"></rect><rect x="13" y="13" width="4.5" height="4.5" rx="1"></rect></svg>';
+
   var GRIP_SVG =
     '<svg width="9" height="14" viewBox="0 0 10 14" fill="currentColor">' +
     '<circle cx="2.5" cy="2.5" r="1.4"></circle><circle cx="7.5" cy="2.5" r="1.4"></circle>' +
@@ -1659,13 +1813,18 @@
       d.ghost.textContent = (label.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60) || "Move";
       document.body.appendChild(d.ghost);
       d.src.classList.add("dragging");
-      // drag near the top or bottom of the week grid (or any list) to scroll it
+      // drag near the top or bottom of the week grid (or any list) to scroll it;
+      // near the top or bottom of the screen, the page itself scrolls (phones: from the task list up to the grid)
       d.scroll = setInterval(function () {
-        var s = scrollerAt(document.elementFromPoint(d.x, d.y));
-        if (!s) return;
-        var r = s.getBoundingClientRect(), edge = 48;
-        if (d.y < r.top + edge) s.scrollTop -= Math.ceil((r.top + edge - d.y) / 4);
-        else if (d.y > r.bottom - edge) s.scrollTop += Math.ceil((d.y - (r.bottom - edge)) / 4);
+        var s = scrollerAt(document.elementFromPoint(d.x, d.y)), edge = 48;
+        var r = s && s.getBoundingClientRect();
+        if (s && d.y < r.top + edge && s.scrollTop > 0) s.scrollTop -= Math.ceil((r.top + edge - d.y) / 4);
+        else if (s && d.y > r.bottom - edge && s.scrollTop + s.clientHeight < s.scrollHeight) s.scrollTop += Math.ceil((d.y - (r.bottom - edge)) / 4);
+        else {
+          var bottom = window.innerHeight - document.getElementById("bottomNav").offsetHeight;
+          if (d.y < 70) window.scrollBy(0, -Math.ceil((70 - d.y) / 3));
+          else if (d.y > bottom - 70) window.scrollBy(0, Math.ceil((d.y - (bottom - 70)) / 3));
+        }
       }, 30);
       move();
     }
@@ -2079,7 +2238,85 @@
     list.appendChild(add);
 
     var sel = selectedHabit();
+    renderBottomNav();
+    if (document.getElementById("habitSheetBackdrop").classList.contains("open")) renderHabitSheet();
   }
+
+  // phones: the sidebar becomes a tab bar along the bottom. The habits sit behind
+  // the grid tab, which opens them as a sheet instead of a long row of dots.
+  function renderBottomNav() {
+    var nav = document.getElementById("bottomNav");
+    var onHabits = isAllView() || !!selectedHabit();
+    var tabs = [
+      [THISWEEK, CLOCK_SVG, "This Week", isThisWeekView()],
+      [CAL, CAL_SVG, "Calendar", isCalView()],
+      ["habits", GRID_SVG, "Habits", onHabits],
+      [GRAPHS, BAR_SVG, "Graphs", isGraphsView()],
+      [SETTINGS, GEAR_SVG, "Settings", isSettingsView()]
+    ];
+    nav.innerHTML = tabs.map(function (t) {
+      return '<button type="button" class="bnav-btn' + (t[3] ? " active" : "") + '" data-go="' + t[0] + '">' +
+        '<span class="bnav-icon">' + t[1] + '</span><span class="bnav-label">' + t[2] + '</span></button>';
+    }).join("");
+    nav.querySelectorAll(".bnav-btn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var go = b.getAttribute("data-go");
+        if (go === "habits") { openHabitSheet(); return; }
+        state.selectedId = go; saveState(); render(); window.scrollTo(0, 0);
+      });
+    });
+  }
+
+  var habitSheetBd = document.getElementById("habitSheetBackdrop");
+  function renderHabitSheet() {
+    var tiles = document.getElementById("habitTiles");
+    var today = todayKey();
+    var html =
+      '<button type="button" class="habit-tile' + (isAllView() ? " active" : "") + '" data-id="' + ALL + '">' +
+        '<span class="habit-tile-icon" style="background:' + hmColor() + '">' + GRID_SVG + '</span>' +
+        '<span class="habit-tile-name">All Habits</span>' +
+        '<span class="habit-tile-sub">' + state.habits.length + (state.habits.length === 1 ? " habit" : " habits") + '</span>' +
+      '</button>';
+    state.habits.forEach(function (h) {
+      var s = computeStats(h);
+      var done = isScheduledOn(h, today) && isDone(h, today);
+      html +=
+        '<button type="button" class="habit-tile' + (h.id === state.selectedId ? " active" : "") + '" data-id="' + h.id + '">' +
+          '<span class="habit-tile-icon" style="background:' + h.color + '">' + escapeHtml((h.name.trim()[0] || "?").toUpperCase()) +
+            (done ? '<span class="habit-tile-check" style="color:' + h.color + '">✓</span>' : '') + '</span>' +
+          '<span class="habit-tile-name">' + escapeHtml(h.name) + '</span>' +
+          '<span class="habit-tile-sub">' + (s.current > 0 ? s.current + "-day streak" : "no streak") + '</span>' +
+        '</button>';
+    });
+    html +=
+      '<button type="button" class="habit-tile add-tile" data-id="">' +
+        '<span class="habit-tile-icon">+</span><span class="habit-tile-name">New habit</span>' +
+      '</button>';
+    tiles.innerHTML = html;
+    tiles.querySelectorAll(".habit-tile").forEach(function (t) {
+      t.addEventListener("click", function () {
+        var id = t.getAttribute("data-id");
+        closeHabitSheet();
+        if (!id) { openNewHabitModal(); return; }
+        state.selectedId = id; saveState(); render(); window.scrollTo(0, 0);
+      });
+    });
+  }
+  // the sheet adds a history entry, so the phone's back button closes it
+  function openHabitSheet() {
+    renderHabitSheet();
+    if (habitSheetBd.classList.contains("open")) return;
+    habitSheetBd.classList.add("open");
+    try { history.pushState({ hbSheet: 1 }, ""); } catch (e) {}
+  }
+  function closeHabitSheet(fromBack) {
+    if (!habitSheetBd.classList.contains("open")) return;
+    habitSheetBd.classList.remove("open");
+    if (!fromBack && history.state && history.state.hbSheet) history.back();
+  }
+  window.addEventListener("popstate", function () { closeHabitSheet(true); });
+  habitSheetBd.addEventListener("click", function (e) { if (e.target === habitSheetBd) closeHabitSheet(); });
+  document.getElementById("habitSheetClose").addEventListener("click", function () { closeHabitSheet(); });
 
   function renderMain() {
     inlineEntryOpen = false;
@@ -4087,12 +4324,12 @@
         '<div class="cal-grid" id="calGrid"></div>';
 
     main.innerHTML =
-      '<div class="habit-head">' +
+      '<div class="habit-head cal-head">' +
         '<div>' +
           '<div class="habit-title-row"><h2>Calendar</h2></div>' +
           '<div class="habit-sub">Habits show up on the days they repeat; to-dos show up on their due date and time.</div>' +
         '</div>' +
-        '<div class="cal-view-toggle">' +
+        '<div class="cal-view-toggle seg">' +
           '<button class="view-toggle-btn' + (calViewMode === "month" ? " active" : "") + '" id="viewMonthBtn">Month</button>' +
           '<button class="view-toggle-btn' + (calViewMode === "week" ? " active" : "") + '" id="viewWeekBtn">Week</button>' +
         '</div>' +
@@ -4127,7 +4364,28 @@
       buildCalendarGrid();
       wireCalNav();
     }
+    wireCalSwipe(main.querySelector(".cal-panel"));
     renderDayDetail();
+  }
+
+  // swipe the month or week sideways to go back or forward. Drags (grips, held
+  // chips, blocks) start on draggable items and the hour grid, so those are left alone.
+  function wireCalSwipe(el) {
+    var sx = null, sy = 0;
+    el.addEventListener("touchstart", function (e) {
+      var t = e.target;
+      sx = e.touches.length === 1 && !t.closest("[draggable='true'], .event-block, .drag-handle") ? e.touches[0].clientX : null;
+      sy = e.touches[0].clientY;
+    }, { passive: true });
+    el.addEventListener("touchend", function (e) {
+      if (sx === null || document.querySelector(".hb-drag-ghost")) return;
+      var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      sx = null;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+      var week = calViewMode === "week";
+      var btn = document.getElementById(dx < 0 ? (week ? "weekNext" : "calNext") : (week ? "weekPrev" : "calPrev"));
+      if (btn) btn.click();
+    });
   }
 
   function wireCalNav() {
@@ -4171,15 +4429,23 @@
       var dueTodos = state.todos.filter(function (t) { return t.date === key; });
       var duePayments = state.payments.filter(function (p) { return paymentDueOn(p, key); });
 
-      var dotsHtml = "";
-      scheduled.slice(0, 11).forEach(function (h) {
+      var dotsHtml = "", maxDots = isPhoneWidth() ? 8 : 11;
+      var doneCount = 0;
+      scheduled.forEach(function (h) { if (!isFuture && isDone(h, key)) doneCount++; });
+      scheduled.slice(0, maxDots).forEach(function (h) {
         var filled = !isFuture && isDone(h, key);
         dotsHtml += '<span class="cal-dot' + (filled ? " filled" : "") + '" style="' +
           (filled ? "background:" + h.color + ";border-color:" + h.color : "border-color:" + h.color) + '"></span>';
       });
-      if (scheduled.length > 11) dotsHtml += '<span class="cal-dot-more">+' + (scheduled.length - 11) + '</span>';
+      if (scheduled.length > maxDots) dotsHtml += '<span class="cal-dot-more">+' + (scheduled.length - maxDots) + '</span>';
+      // days that have passed: a line showing how much got done, tinted when everything did
+      var progressHtml = "";
+      if (!isFuture && scheduled.length) {
+        progressHtml = '<span class="cal-progress"><i style="width:' + Math.round(100 * doneCount / scheduled.length) + '%"></i></span>';
+        if (doneCount === scheduled.length) cell.classList.add("cal-perfect");
+      }
 
-      cell.innerHTML =
+      cell.innerHTML = progressHtml +
         '<span class="cal-day-num">' + d.getDate() + '</span>' +
         '<span class="cal-dots">' + dotsHtml + '</span>' +
         ((dueTodos.length || duePayments.length) ? '<span class="cal-badges">' +
@@ -4417,7 +4683,8 @@
     var rangeEl = document.getElementById("weekRangeLabel");
     if (rangeEl) rangeEl.textContent = rangeLabel;
 
-    var colTemplate = "60px repeat(7, 1fr)";
+    // minmax(0, …) so long chip names can't push the week wider than the screen
+    var colTemplate = (isPhoneWidth() ? "38px" : "60px") + " repeat(7, minmax(0, 1fr))";
 
     // day header row
     var headerHtml = '<div class="week-corner"></div>';
@@ -4425,8 +4692,10 @@
       var key = dateKey(d);
       headerHtml += '<div class="week-day-head' +
         (key === todayKey() ? " is-today" : "") +
+        (key === calSelectedKey ? " is-selected" : "") +
         '" data-key="' + key + '">' +
-        d.toLocaleDateString(undefined, { weekday: "short" }) + ' ' + d.getDate() +
+        '<span class="wdh-name">' + d.toLocaleDateString(undefined, { weekday: "short" }) + '</span>' +
+        '<span class="wdh-num">' + d.getDate() + '</span>' +
         '</div>';
     });
 
@@ -4833,7 +5102,9 @@
     var scrollEl = document.querySelector(".week-scroll");
     if (!scrollEl) return;
     var rect = scrollEl.getBoundingClientRect();
-    var available = window.innerHeight - rect.top - 24; // small bottom margin
+    var available = window.innerHeight - rect.top - 24 - document.getElementById("bottomNav").offsetHeight; // small bottom margin
+    // phones: leave room under the grid so the task list (drag source) is close by
+    if (isPhoneWidth()) available = Math.min(available, Math.round(window.innerHeight * 0.6));
     scrollEl.style.height = Math.max(300, available) + "px";
   }
 

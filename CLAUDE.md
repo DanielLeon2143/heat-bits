@@ -62,6 +62,18 @@ existing drop handlers work unchanged. For any new drag source, add `draggable="
 `dragstart` that calls `setData`. For any new target, use `dragover` (preventDefault) + `drop`. Touch drags start
 immediately from `.drag-handle`, and after a 350 ms hold anywhere else.
 The habit/activity blocks in the hour grid still move with their own `mousedown` code, so mouse only.
+While dragging near the top or bottom of the screen, the page itself scrolls (phones: task list → week grid).
+
+### Phone layout (`.app.phone`, width ≤ 700px)
+- The sidebar is hidden. `renderBottomNav()` fills `#bottomNav`, a fixed tab bar: This Week, Calendar,
+  Habits (2×2 grid icon), Graphs, Settings. The Habits tab opens `#habitSheetBackdrop`, a bottom sheet of
+  habit tiles (All Habits, each habit, New habit). The sheet pushes a history entry, so Android's back
+  button closes it (`main.dart` calls `goBack()` when the page can go back).
+- Calendar: compact header, the week fits the screen (`38px repeat(7, minmax(0, 1fr))`), the grid is capped at
+  60% of the screen height so the task list stays close, and sideways swipes change the month/week
+  (`wireCalSwipe`). `overscroll-behavior-x: none` stops the browser treating those swipes as "back".
+- Preview without a phone: headless Edge with `Emulation.setDeviceMetricsOverride` (400 px wide, mobile) on a copy
+  of index.html whose localStorage is seeded from `heatbits.json`'s `local`.
 
 ## Commands
 
