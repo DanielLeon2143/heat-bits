@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter test:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter pub get)",
+      "Bash(flutter doctor:*)",
+      "Bash(dart format:*)",
+      "Bash(dart run tool/prepare.dart)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "PowerShell(flutter test:*)",
+      "PowerShell(flutter analyze:*)",
+      "PowerShell(flutter pub get)",
+      "PowerShell(flutter doctor:*)",
+      "PowerShell(dart format:*)",
+      "PowerShell(dart run tool/prepare.dart)",
+      "PowerShell(git status)",
+      "PowerShell(git diff:*)",
+      "PowerShell(git log:*)"
+    ]
+  }
+}

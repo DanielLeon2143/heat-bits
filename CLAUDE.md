@@ -1,0 +1,89 @@
+# Heat-Bits (Flutter: Windows + Android)
+
+Habit heat maps, calendar and to-dos. One Flutter app for Windows and Android that wraps a single web UI
+and adds file storage plus two-way sync over the home Wi-Fi (PC = host, phone = client).
+
+## The big picture
+
+- **All UI lives in `assets/web/index.html`** (~370 KB, one file, vanilla JS). It's the same page as
+  the web version of Heat-Bits. Screen/UX changes go there, not in Dart.
+- **`lib/` only does storage, the local bridge and LAN sync.** There are no Flutter widgets apart from
+  the web view (`main.dart`) and the QR camera (`scan_screen.dart`).
+- `isHost = !Platform.isAndroid`: Windows runs `SyncHost`, Android runs `SyncClient`.
+
+```
+page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClient (phone)
+                                          |
+                                        Store (heatbits.json)
+```
+
+| File | Role |
+|---|---|
+| `lib/main.dart` | Boot: opens `Store`, starts `AppController`, shows the web view at `http://127.0.0.1:<uiPort>/`. External links are blocked. Back button and lifecycle handling (save on pause, sync on resume). |
+| `lib/app_controller.dart` | Hub. `onPageSave` / `applyNetworkData` / `_pushToPage`. Uses `uiRev` + `_revData` so a save made from a stale page gets merged instead of overwriting newer synced data. |
+| `lib/ui_server.dart` | Localhost-only HTTP for the page: `GET /` (HTML with boot data injected), SSE `/api/events` (`state`, `status`), `/api/save`, `/api/sync/*`, `/api/pair/*`, `/api/devices/remove`, `/api/export`. Every `/api/*` needs the per-launch key (`x-hb-key` header or `?k=`). |
+| `lib/sync_host.dart` | PC: `GET /hb/hello`, `POST /hb/pair` (6-char code → token), `POST /hb/sync` (Bearer token, 3-way merge), `GET /hb/ws` (pushes `{"type":"changed"}`), UDP discovery reply. |
+| `lib/sync_client.dart` | Phone: pairing (QR or manual), finds the PC (last host → known hosts → UDP broadcast), WebSocket with backoff (5s→60s), debounced sync (700 ms), offline-first. |
+| `lib/merge.dart` | `merge3(base, a, b)`, `deepEq`, `syncKeys`, `syncPart`. Pure Dart, so it's the main unit-test target. |
+| `lib/store.dart` | One JSON file `heatbits.json` in the app support dir: `{local, base, version, meta}`. Saves are debounced (300 ms) and atomic (`.tmp` + rename). An unreadable file is kept as `.broken-<ts>`. |
+| `lib/net_util.dart` | Ports, `localAddresses()` (skips virtual adapters), `httpJson`, `discoverHost`. |
+| `lib/qr_svg.dart` | Pairing QR as SVG (served at `/api/pair/qr.svg`). |
+| `tool/prepare.dart` | Patches the generated `android/` and `windows/` files: permissions, cleartext HTTP, camera feature, minSdk ≥ 21, app name and window size. Safe to re-run. |
+
+### Ports
+- `47811` TCP: PC sync server (HTTP + WebSocket, all interfaces)
+- `47812` UDP: discovery (`HEATBITS_DISCOVER <serverId>` → `HEATBITS_HERE <serverId> <port>`)
+- `47813` TCP: UI server, loopback only (falls back to a random port if taken)
+
+### Page ↔ app contract (keep both sides in step)
+- `index.html` line 4 holds `<!--HB_BOOT-->`. `UiServer._page` replaces it with
+  `window.__HB_HOST__ = {key, role, platform, rev}` and `window.__HB_BOOT_STATE__`.
+- When `__HB_HOST__` is missing, the page runs standalone on `localStorage`. Keep that path working, because
+  the same file is the web version.
+- The page saves through `/api/save` with `{rev, state}` and listens on `/api/events`. If you rename an
+  endpoint or field, change both `ui_server.dart` and the page (search for `hbApi(` in index.html).
+
+### Sync model
+- Only `syncKeys = ['habits', 'todos', 'activities', 'payments']` sync ("payments" are called reminders
+  in the UI). Settings, theme, layout etc. stay per device.
+- Three-way merge: a change on one side wins. Changes on both sides merge maps key by key and merge
+  lists of `{id: …}` maps item by item. A real clash takes `b` (the incoming side, `preferB: true`).
+  Delete vs. untouched → deleted. Delete vs. edit → the edit is kept.
+- The phone stores `base` (last agreed state). The PC bumps `store.version` on every change.
+- A first sync after pairing (`base == null`) takes the PC's data, unless the PC has none.
+- QR payload: `heatbits://pair?h=<ip,ip>&p=<port>&c=<CODE>&id=<serverId>&n=<PC name>`.
+
+## Commands
+
+Platform folders (`android/`, `windows/`, …) are **generated and gitignored**. Create them once:
+
+```
+flutter create --platforms=windows,android --org com.heatbits --project-name heat_bits .
+dart run tool/prepare.dart
+flutter pub get
+```
+
+- Tests: `flutter test` (pure Dart tests on `merge.dart`, no platform folders needed)
+- Lint: `flutter analyze`
+- Run: `flutter run -d windows`, or `flutter run -d <android device>`
+- Release build of both: `powershell -ExecutionPolicy Bypass -File build.ps1`
+- CI: `.github/workflows/build.yml` (Flutter **3.27.4**, runs `flutter test` and builds the APK and the Windows zip on push to main/master)
+
+Native changes (manifest, gradle, runner) **go in `tool/prepare.dart`**, never in the generated folders,
+because those get recreated on every CI run.
+
+## Conventions
+- Error strings and README text are written for non-technical users. Use plain sentences and say what to do next
+  (e.g. "Can't find your PC on this Wi-Fi. Is Heat-Bits open on it?").
+- Comments are short and explain *why*. Match the existing tone.
+- Networking and disk code catches and ignores errors on purpose (best effort, retried later). Don't
+  add exceptions that can crash the app.
+- Dependencies are deliberately few (see `pubspec.yaml`). Prefer `dart:io` over new packages.
+
+## Gotchas
+- `index.html` is huge. Use Grep and read with offsets, never the whole file at once.
+- Only one PC instance can bind 47811. A second one shows "port already in use" in Settings.
+- Windows asks for firewall permission on the first run. Without it, phones can't reach the PC.
+- README.md and pubspec.yaml contain mojibake (`â€"`, `â†'`) from an encoding round-trip. Don't rewrite
+  those files in a different encoding while making unrelated edits.
+- Android needs `usesCleartextTraffic` (plain HTTP to 127.0.0.1 and to the PC). `prepare.dart` sets it.
