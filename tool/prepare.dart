@@ -72,6 +72,56 @@ void _windows() {
     }
   }
 
+  // closing the window while the web view is still up crashes (flutter_inappwebview_windows),
+  // so the close goes to the app first: it saves, takes the web view down, then says "destroy"
+  final fw = File('windows/runner/flutter_window.cpp');
+  if (fw.existsSync()) {
+    var w = fw.readAsStringSync().replaceAll('\r\n', '\n'); // flutter create writes CRLF on Windows
+    if (!w.contains('heatbits/window')) {
+      w = w.replaceFirst('#include "flutter/generated_plugin_registrant.h"\n', '''#include "flutter/generated_plugin_registrant.h"
+
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+
+// Heat-Bits: the window close is handed to the app first (see tool/prepare.dart)
+static std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> hb_window_channel;
+static bool hb_close_ready = false;
+static const UINT_PTR kHbCloseTimer = 0x4842;
+''');
+      w = w.replaceFirst('  RegisterPlugins(flutter_controller_->engine());\n', '''  RegisterPlugins(flutter_controller_->engine());
+  HWND hb_hwnd = GetHandle();
+  hb_window_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "heatbits/window",
+      &flutter::StandardMethodCodec::GetInstance());
+  hb_window_channel->SetMethodCallHandler([hb_hwnd](const auto& call, auto result) {
+    if (call.method_name() == "destroy") {
+      hb_close_ready = true;
+      PostMessage(hb_hwnd, WM_CLOSE, 0, 0);
+      result->Success();
+    } else {
+      result->NotImplemented();
+    }
+  });
+''');
+      w = w.replaceFirst('void FlutterWindow::OnDestroy() {\n', 'void FlutterWindow::OnDestroy() {\n  hb_window_channel = nullptr;\n');
+      w = w.replaceFirst('  // Give Flutter, including plugins, an opportunity to handle window messages.\n', '''  if (message == WM_CLOSE && !hb_close_ready && hb_window_channel) {
+    hb_window_channel->InvokeMethod("close", nullptr);
+    SetTimer(hwnd, kHbCloseTimer, 5000, nullptr);  // no answer in 5 s: close anyway
+    return 0;
+  }
+  if (message == WM_TIMER && wparam == kHbCloseTimer) {
+    KillTimer(hwnd, kHbCloseTimer);
+    hb_close_ready = true;
+    PostMessage(hwnd, WM_CLOSE, 0, 0);
+    return 0;
+  }
+
+  // Give Flutter, including plugins, an opportunity to handle window messages.
+''');
+      fw.writeAsStringSync(w);
+    }
+  }
+
   final rc = File('windows/runner/Runner.rc');
   if (rc.existsSync()) {
     var r = rc.readAsStringSync();

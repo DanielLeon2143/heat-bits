@@ -1599,6 +1599,9 @@
     es.addEventListener("status", function (e) { try { hbStatus = JSON.parse(e.data); hbShowStatus(); } catch (x) {} });
     setInterval(function () { if (hbPendingRemote && !hbBusy()) hbApplyRemote(hbPendingRemote); }, 1200);
     hbApi("/api/sync/status").then(function (s) { hbStatus = s; hbShowStatus(); }).catch(function () {});
+    // the app asks for any edit not sent yet before it closes; going to the background sends it too
+    window.__hbFlush = function () { return hbSaveTimer ? hbFlushSave() : Promise.resolve(); };
+    document.addEventListener("visibilitychange", function () { if (document.hidden && hbSaveTimer) hbFlushSave(); });
   }
   function hbAgo(ms) {
     if (!ms) return "never";

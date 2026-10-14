@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_controller.dart';
@@ -51,11 +52,20 @@ class WebHome extends StatefulWidget {
 
 class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
   InAppWebViewController? _web;
+  bool _closing = false;
+
+  /// The Windows runner hands the window close to us first (tool/prepare.dart).
+  static const _window = MethodChannel('heatbits/window');
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (Platform.isWindows) {
+      _window.setMethodCallHandler((call) async {
+        if (call.method == 'close') await _close();
+      });
+    }
   }
 
   @override
@@ -73,8 +83,24 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
     }
   }
 
+  /// The window is closing (PC). Collect the page's last edit and save, then take
+  /// the web view down before the window goes: closing with it still up crashes.
+  Future<void> _close() async {
+    if (_closing) return;
+    try {
+      await _web
+          ?.callAsyncJavaScript(functionBody: 'if (window.__hbFlush) await window.__hbFlush();')
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    if (mounted) setState(() => _closing = true);
+    await WidgetsBinding.instance.endOfFrame;
+    await widget.app.stop();
+    await _window.invokeMethod<void>('destroy');
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_closing) return const Scaffold();
     final url = 'http://127.0.0.1:${widget.app.ui.port}/';
     return PopScope(
       canPop: false,

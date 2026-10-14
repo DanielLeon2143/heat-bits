@@ -83,6 +83,12 @@ because those get recreated on every CI run.
   AGP 9 rejects. Keep the whole inappwebview family on the same beta. Don't use `^`, because it pulls mixed versions.
 - `prepare.dart` adds `-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` to `windows/CMakeLists.txt`.
   Without it, MSVC 14.5x (VS 2026) errors out on the plugin's `<experimental/coroutine>`.
+- **Window close (Windows):** destroying the engine while an `InAppWebView` is alive crashes
+  (`0xC000041D` in flutter_windows.dll). This reproduces with a bare app that has only a web view.
+  `prepare.dart` patches `windows/runner/flutter_window.cpp` so that `WM_CLOSE` goes to Dart over the
+  `heatbits/window` channel (`close`). `_WebHomeState._close` flushes the page (`window.__hbFlush`), removes
+  the web view, stops the servers, then calls `destroy`. If Dart doesn't answer, a 5 s timer closes the window anyway.
+  `prepare.dart` normalises CRLF to LF before patching, because `flutter create` writes CRLF.
 
 ### Testing the sync without a phone
 Run the release exe, then use a script that acts as a phone. Read the key from `GET 127.0.0.1:47813/`
