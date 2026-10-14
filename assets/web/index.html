@@ -6375,7 +6375,7 @@
           if (key === todayKey()) ringShadows.push("0 0 0 1.5px var(--ink-soft)");
           if (!habit && !isFuture) {
             var dayRatio = dayCompletionRatio(key);
-            if (dayRatio.of > 0 && dayRatio.done === dayRatio.of) ringShadows.push("inset 0 0 0 1px rgba(255,255,255,0.65)");
+            if (dayRatio.of > 0 && dayRatio.done === dayRatio.of) ringShadows.push("inset 0 0 0 1px rgba(255,255,255,0.3)");
           }
           if (ringShadows.length) btn.style.boxShadow = ringShadows.join(", ");
           if (habit && !isFuture) {
