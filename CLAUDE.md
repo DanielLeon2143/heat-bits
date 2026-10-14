@@ -53,6 +53,16 @@ page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClien
 - A first sync after pairing (`base == null`) takes the PC's data, unless the PC has none.
 - QR payload: `heatbits://pair?h=<ip,ip>&p=<port>&c=<CODE>&id=<serverId>&n=<PC name>`.
 
+### Dragging inside the app
+Native HTML5 drag-and-drop never reaches the page in the app: the WebView2 composition controller
+doesn't forward OLE drag, and Android doesn't start it from touch. `hbPointerDrag()` in index.html
+(only when `HB` is set) runs drags on pointer events instead. It blocks the trusted `dragstart` and
+replays synthetic `dragstart`/`dragover`/`dragleave`/`drop`/`dragend` with a stand-in `dataTransfer`, so the
+existing drop handlers work unchanged. For any new drag source, add `draggable="true"` and a
+`dragstart` that calls `setData`. For any new target, use `dragover` (preventDefault) + `drop`. Touch drags start
+immediately from `.drag-handle`, and after a 350 ms hold anywhere else.
+The habit/activity blocks in the hour grid still move with their own `mousedown` code, so mouse only.
+
 ## Commands
 
 Platform folders (`android/`, `windows/`, …) are **generated and gitignored**. Create them once:
@@ -94,6 +104,13 @@ because those get recreated on every CI run.
 Run the release exe, then use a script that acts as a phone. Read the key from `GET 127.0.0.1:47813/`
 (`__HB_HOST__.key`) and the pair code from `/api/sync/status`. Then `POST /hb/pair`, `POST /hb/sync`
 and open `ws://<ip>:47811/hb/ws?token=…`. Remove the test device afterwards with `/api/devices/remove`.
+
+### Inspecting the page in the Windows app
+`flutter build windows --release --dart-define=HB_DEVTOOLS=true` opens the DevTools protocol on
+`127.0.0.1:9222`. Neither the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var nor the WebView2 policy works,
+because the plugin builds the environment itself. Drive it with `Runtime.evaluate` / `Input.dispatch*Event`. CDP input
+skips the OS layer, so check drag/mouse changes with real input (SendInput) too. Rebuild without the
+flag before shipping.
 
 ## Conventions
 - Error strings and README text are written for non-technical users. Use plain sentences and say what to do next

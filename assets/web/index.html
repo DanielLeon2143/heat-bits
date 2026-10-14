@@ -742,6 +742,15 @@
   }
   .drag-handle:hover { opacity: 0.9; }
   .drag-handle:active { cursor: grabbing; }
+  /* inside the app, drags run on pointer events (see hbPointerDrag): a touch on a grip drags, not scrolls */
+  .hb-app .drag-handle { touch-action: none; padding: 6px; margin: -4px; }
+  .hb-app [draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .hb-drag-ghost {
+    position: fixed; z-index: 10000; pointer-events: none; max-width: 220px; padding: 6px 10px;
+    border-radius: var(--radius); background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25); font-size: calc(13px * var(--fs, 1)); font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: translate(12px, -50%);
+  }
   .cal-remove-extra {
     border: none; background: none; color: var(--ink-soft); opacity: 0.5; padding: 2px; flex-shrink: 0;
     display: flex; align-items: center;
@@ -1602,6 +1611,120 @@
     // the app asks for any edit not sent yet before it closes; going to the background sends it too
     window.__hbFlush = function () { return hbSaveTimer ? hbFlushSave() : Promise.resolve(); };
     document.addEventListener("visibilitychange", function () { if (document.hidden && hbSaveTimer) hbFlushSave(); });
+  }
+
+  // Native drag-and-drop never reaches the page inside the app: the Windows web view
+  // doesn't pass it through, and phones don't start it from a touch. So in the app,
+  // drags run on pointer events and replay the same dragstart / dragover / drop events
+  // the handlers already listen for (with a stand-in dataTransfer).
+  // Mouse: press and move. Touch: move from a grip handle, or hold anything else first.
+  function hbPointerDrag() {
+    document.documentElement.classList.add("hb-app");
+    var d = null; // the drag in progress (or about to start)
+
+    function draggableFrom(t) {
+      var el = t && t.closest ? t.closest("[draggable]") : null;
+      return el && el.getAttribute("draggable") === "true" ? el : null;
+    }
+    function fire(target, type, x, y) {
+      var ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, "clientX", { value: x });
+      Object.defineProperty(ev, "clientY", { value: y });
+      Object.defineProperty(ev, "dataTransfer", { value: d.dt });
+      target.dispatchEvent(ev);
+      return ev;
+    }
+    function scrollerAt(el) {
+      for (; el && el !== document.body; el = el.parentElement) {
+        var oy = getComputedStyle(el).overflowY;
+        if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) return el;
+      }
+      return null;
+    }
+    function start() {
+      var data = {};
+      d.dt = {
+        effectAllowed: "move", dropEffect: "move", types: [],
+        setData: function (k, v) { data[k] = String(v); this.types = Object.keys(data); },
+        getData: function (k) { return data[k] || ""; },
+        clearData: function () { data = {}; this.types = []; },
+        setDragImage: function () {}
+      };
+      if (fire(d.src, "dragstart", d.x, d.y).defaultPrevented || !d.dt.types.length) { d = null; return; }
+      d.started = true;
+      if (navigator.vibrate && d.touch) navigator.vibrate(15);
+      var label = d.src.closest(".todo-row, .cal-habit-row, .event-block, .week-allday-chip, [data-id]") || d.src;
+      d.ghost = document.createElement("div");
+      d.ghost.className = "hb-drag-ghost";
+      d.ghost.textContent = (label.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60) || "Move";
+      document.body.appendChild(d.ghost);
+      d.src.classList.add("dragging");
+      // drag near the top or bottom of the week grid (or any list) to scroll it
+      d.scroll = setInterval(function () {
+        var s = scrollerAt(document.elementFromPoint(d.x, d.y));
+        if (!s) return;
+        var r = s.getBoundingClientRect(), edge = 48;
+        if (d.y < r.top + edge) s.scrollTop -= Math.ceil((r.top + edge - d.y) / 4);
+        else if (d.y > r.bottom - edge) s.scrollTop += Math.ceil((d.y - (r.bottom - edge)) / 4);
+      }, 30);
+      move();
+    }
+    function move() {
+      d.ghost.style.left = d.x + "px";
+      d.ghost.style.top = d.y + "px";
+      var t = document.elementFromPoint(d.x, d.y);
+      if (d.over && d.over !== t) fire(d.over, "dragleave", d.x, d.y);
+      d.over = t;
+      d.ok = !!t && fire(t, "dragover", d.x, d.y).defaultPrevented;
+    }
+    function finish(drop) {
+      var cur = d;
+      clearTimeout(cur.hold);
+      if (cur.started) {
+        clearInterval(cur.scroll);
+        cur.ghost.remove();
+        cur.src.classList.remove("dragging");
+        if (drop && cur.ok && cur.over) fire(cur.over, "drop", cur.x, cur.y);
+        else if (cur.over) fire(cur.over, "dragleave", cur.x, cur.y);
+        fire(cur.src, "dragend", cur.x, cur.y);
+        // the press and release can land on different elements: don't let that count as a click
+        var eat = function (e) { e.stopPropagation(); e.preventDefault(); };
+        document.addEventListener("click", eat, true);
+        setTimeout(function () { document.removeEventListener("click", eat, true); }, 0);
+      }
+      d = null;
+    }
+
+    // the real (native) drag would go nowhere: always use ours
+    document.addEventListener("dragstart", function (e) { if (e.isTrusted) e.preventDefault(); }, true);
+
+    document.addEventListener("pointerdown", function (e) {
+      if (d || !e.isPrimary || e.button !== 0) return;
+      var src = draggableFrom(e.target);
+      if (!src) return;
+      var touch = e.pointerType === "touch";
+      d = { src: src, id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: touch,
+            handle: !!e.target.closest(".drag-handle"), started: false, armed: !touch };
+      // a touch on a chip or calendar block becomes a drag after a short hold, so scrolling still works
+      if (touch && !d.handle) d.hold = setTimeout(function () { if (d && !d.started) { d.armed = true; start(); } }, 350);
+      if (touch && d.handle) d.armed = true;
+    }, true);
+
+    document.addEventListener("pointermove", function (e) {
+      if (!d || e.pointerId !== d.id) return;
+      d.x = e.clientX; d.y = e.clientY;
+      if (d.started) { e.preventDefault(); move(); return; }
+      if (Math.abs(d.x - d.sx) + Math.abs(d.y - d.sy) < 6) return;
+      if (d.armed) start();
+      else finish(false); // moved before the hold finished: that's a scroll
+    }, true);
+
+    document.addEventListener("pointerup", function (e) { if (d && e.pointerId === d.id) finish(true); }, true);
+    document.addEventListener("pointercancel", function (e) { if (d && e.pointerId === d.id) finish(false); }, true);
+    // once a touch drag has started, stop the page from scrolling under the finger
+    document.addEventListener("touchmove", function (e) { if (d && d.started) e.preventDefault(); }, { passive: false, capture: true });
+    document.addEventListener("contextmenu", function (e) { if (d) e.preventDefault(); }, true);
+    document.addEventListener("keydown", function (e) { if (d && e.key === "Escape") finish(false); }, true);
   }
   function hbAgo(ms) {
     if (!ms) return "never";
@@ -7012,7 +7135,7 @@
   })();
 
   render();
-  if (HB) hbStartEvents();
+  if (HB) { hbStartEvents(); hbPointerDrag(); }
 })();
 </script>
 </body>

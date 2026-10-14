@@ -15,8 +15,17 @@ import 'store.dart';
 /// over the local Wi-Fi (the PC runs a small server, the phone connects to it).
 final navKey = GlobalKey<NavigatorState>();
 
+/// Build with `--dart-define=HB_DEVTOOLS=true` to inspect the page on Windows
+/// (Edge/Chrome DevTools protocol at http://127.0.0.1:9222). Off in normal builds.
+const _devTools = bool.fromEnvironment('HB_DEVTOOLS');
+WebViewEnvironment? _webEnv;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (_devTools && Platform.isWindows) {
+    _webEnv = await WebViewEnvironment.create(
+        settings: WebViewEnvironmentSettings(additionalBrowserArguments: '--remote-debugging-port=9222'));
+  }
   final store = await Store.open();
   final app = AppController(store: store, isHost: !Platform.isAndroid, navKey: navKey);
   await app.start();
@@ -118,6 +127,7 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
       child: Scaffold(
         body: SafeArea(
           child: InAppWebView(
+            webViewEnvironment: _webEnv,
             initialUrlRequest: URLRequest(url: WebUri(url)),
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
