@@ -1205,7 +1205,8 @@
   .app.phone .heatmap-wrap { overflow-x: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
   .app.phone .heatmap-inner { width: max-content; min-width: 100%; }
   .app.phone .year-nav { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 50px); }
-  .app.phone .day-labels { position: sticky; left: 0; z-index: 2; background: var(--surface); padding-right: 4px; }
+  /* the label column covers the 12px of padding too, so no squares peek out to its left while scrolling */
+  .app.phone .day-labels { position: sticky; left: -12px; z-index: 2; background: var(--surface); box-sizing: content-box; margin-left: -12px; padding-left: 12px; padding-right: 4px; }
   .app.phone .habit-item { padding: 8px 7px; }
   .app.phone .week-trackers { min-height: 0; }
   .app.phone .cal-view-toggle { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
