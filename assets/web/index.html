@@ -1163,6 +1163,9 @@
     background: rgba(255, 255, 255, 0.55); transform: translateX(-50%); border-radius: 1px;
   }
   .event-block.activity .event-resize-handle::after { background: rgba(255,255,255,0.85); box-shadow: 0 0 0 0.5px rgba(0,0,0,0.12); }
+  .event-block { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .event-block.resizing { z-index: 6; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  .event-resize-handle { touch-action: none; }
   .now-line { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); z-index: 15; pointer-events: none; }
   .now-line::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
@@ -1362,6 +1365,14 @@
   .app.phone .week-allday-chip svg { display: none; }
   .app.phone .week-hour-label { font-size: calc(9px * var(--fs, 1)); padding-right: 4px; }
   .app.phone .event-block { left: 1px; right: 1px; padding: 2px 3px; font-size: calc(9px * var(--fs, 1)); border-radius: 4px; }
+  /* a finger-sized grip: up to 16px, but never more than half of a short box so the rest can still be held to move it */
+  .app.phone .event-resize-handle { height: min(16px, 50%); }
+  /* no hover on a phone, so the (invisible) delete button would just catch taps meant for the box:
+     it shows after holding a box and letting go without moving it */
+  .app.phone .event-remove { display: none; }
+  .app.phone .event-block.show-remove .event-remove { display: flex; opacity: 1; width: 22px; height: 22px; }
+  .app.phone .event-block.show-remove .event-remove svg { width: 11px; height: 11px; }
+  .app.phone .event-resize-handle::after { bottom: 3px; width: 60%; max-width: 28px; height: 3px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -1755,7 +1766,7 @@
   function hbBusy() {
     var a = document.activeElement;
     if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== "checkbox" && a.type !== "button") return true;
-    return !!document.querySelector(".modal-backdrop.open, .side-popover.open, .event-block.dragging, .help-pop:not(.hidden)");
+    return !!document.querySelector(".modal-backdrop.open, .side-popover.open, .event-block.dragging, .event-block.resizing, .help-pop:not(.hidden)");
   }
   function hbApplyRemote(p) {
     if (!p || !p.state) return;
@@ -1883,7 +1894,7 @@
       d = { src: src, id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, touch: touch,
             handle: !!e.target.closest(".drag-handle"), started: false, armed: !touch };
       // a touch on a chip or calendar block becomes a drag after a short hold, so scrolling still works
-      if (touch && !d.handle) d.hold = setTimeout(function () { if (d && !d.started) { d.armed = true; start(); } }, 350);
+      if (touch && !d.handle) d.hold = setTimeout(function () { if (d && !d.started) { d.armed = true; start(); } }, src.classList.contains("event-block") ? BLOCK_HOLD_MS : 350);
       if (touch && d.handle) d.armed = true;
     }, true);
 
@@ -4603,31 +4614,31 @@
         e.dataTransfer.effectAllowed = "move";
       });
     } else {
-      el.addEventListener("mousedown", function (e) {
+      el.addEventListener("pointerdown", function (e) {
         if (e.target.closest(".event-remove") || e.target.closest(".event-resize-handle")) return;
-        e.preventDefault();
-        var startY = e.clientY;
         var startTop = parseFloat(el.style.top) || top;
         var slotPx = (SLOT_MIN / 60) * ROW_H;
         var maxTop = 24 * ROW_H - (parseFloat(el.style.height) || height);
-        var moved = false;
 
-        function onMove(ev) {
-          var delta = ev.clientY - startY;
-          if (Math.abs(delta) > 4) moved = true;
-          if (moved) {
-            el.classList.add("dragging");
+        gridPointerDrag(e, BLOCK_HOLD_MS, {
+          start: function () { el.classList.add("dragging"); },
+          move: function (delta) {
             var raw = Math.max(0, Math.min(maxTop, startTop + delta));
-            var snapped = Math.round(raw / slotPx) * slotPx;
-            el.style.top = snapped + "px";
-          }
-        }
-        function onUp() {
-          document.removeEventListener("mousemove", onMove);
-          document.removeEventListener("mouseup", onUp);
-          el.classList.remove("dragging");
-          if (moved) {
+            el.style.top = Math.round(raw / slotPx) * slotPx + "px";
+          },
+          cancel: function () {
+            el.classList.remove("dragging");
+            el.style.top = startTop + "px";
+            el.classList.add("show-remove"); // held without moving: offer delete (phones hide it otherwise)
+          },
+          tap: function () {
+            if (el.classList.contains("show-remove")) { el.classList.remove("show-remove"); return; }
+            if (opts.interactive && opts.onToggle) opts.onToggle();
+          },
+          end: function () {
+            el.classList.remove("dragging");
             var finalTop = parseFloat(el.style.top);
+            if (finalTop === startTop) return; // a held finger wobbled but the box stayed in its slot
             var totalMinutes = Math.round((finalTop / ROW_H) * 60 / SLOT_MIN) * SLOT_MIN;
             totalMinutes = Math.max(0, Math.min(23 * 60 + 30, totalMinutes));
             var hh = Math.floor(totalMinutes / 60), mm = totalMinutes % 60;
@@ -4644,12 +4655,8 @@
               if (opts.onMove) opts.onMove(newTime, false);
               renderMain();
             }
-          } else if (opts.interactive && opts.onToggle) {
-            opts.onToggle();
           }
-        }
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
+        });
       });
     }
 
@@ -4661,43 +4668,120 @@
 
     var handle = el.querySelector(".event-resize-handle");
     handle.setAttribute("draggable", "false");
-    handle.addEventListener("mousedown", function (e) {
-      e.preventDefault();
+    handle.addEventListener("pointerdown", function (e) {
       e.stopPropagation();
-      var startY = e.clientY;
       var startHeight = parseFloat(el.style.height) || height;
       var minPx = (SLOT_MIN / 60) * ROW_H;
+      var newHeight = startHeight;
 
-      function onMove(ev) {
-        var delta = ev.clientY - startY;
-        el.style.height = Math.max(minPx, startHeight + delta) + "px";
-        redrawPatternLive(el);
-      }
-      function onUp(ev) {
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-        var delta = ev.clientY - startY;
-        var newHeight = Math.max(minPx, startHeight + delta);
-        var minutes = Math.round((newHeight / ROW_H) * 60 / SLOT_MIN) * SLOT_MIN;
-        minutes = Math.max(SLOT_MIN, minutes);
-        if (opts.kind === "habit" || opts.kind === "activity") {
-          openRepeatChoice(
-            function () { opts.onResize(minutes, "one"); renderMain(); },
-            function () { opts.onResize(minutes, "all"); renderMain(); },
-            function () { renderMain(); },
-            function () { opts.onResize(minutes, "week"); renderMain(); },
-            { key: opts.key, title: "Change how long it takes", verb: "Change the length on" }
-          );
-        } else {
-          opts.onResize(minutes, false);
-          renderMain();
+      // the grip is its own target, so a touch on it drags straight away (no hold)
+      gridPointerDrag(e, 0, {
+        start: function () { el.classList.add("resizing"); },
+        move: function (delta) {
+          newHeight = Math.max(minPx, startHeight + delta);
+          el.style.height = newHeight + "px";
+          redrawPatternLive(el);
+        },
+        cancel: function () { el.classList.remove("resizing"); el.style.height = startHeight + "px"; redrawPatternLive(el); },
+        end: function () {
+          el.classList.remove("resizing");
+          var minutes = Math.round((newHeight / ROW_H) * 60 / SLOT_MIN) * SLOT_MIN;
+          minutes = Math.max(SLOT_MIN, minutes);
+          if (minutes === opts.duration) { renderMain(); return; }
+          if (opts.kind === "habit" || opts.kind === "activity") {
+            openRepeatChoice(
+              function () { opts.onResize(minutes, "one"); renderMain(); },
+              function () { opts.onResize(minutes, "all"); renderMain(); },
+              function () { renderMain(); },
+              function () { opts.onResize(minutes, "week"); renderMain(); },
+              { key: opts.key, title: "Change how long it takes", verb: "Change the length on" }
+            );
+          } else {
+            opts.onResize(minutes, false);
+            renderMain();
+          }
         }
-      }
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+      });
     });
 
     return el;
+  }
+
+  var BLOCK_HOLD_MS = 500; // touch: how long to hold a calendar box before it moves (shorter swipes scroll)
+
+  // Moving and resizing boxes in the hour grid, for mouse and touch alike.
+  // Mouse starts as soon as it moves; touch waits for a hold of holdMs first, so a swipe still scrolls.
+  // h.move(dy) gets how far the pointer has travelled down the grid, counting any scrolling meanwhile.
+  // h: { start, move(dy), end, cancel, tap }
+  function gridPointerDrag(e, holdMs, h) {
+    if (!e.isPrimary || e.button !== 0) return;
+    var touch = e.pointerType !== "mouse";
+    var id = e.pointerId, sx = e.clientX, sy = e.clientY, y = sy;
+    var scroller = e.target.closest(".week-scroll"), s0 = scroller ? scroller.scrollTop : 0, w0 = window.scrollY;
+    var armed = !touch || !holdMs, started = false, auto = null, hold = null;
+    if (!touch) e.preventDefault(); // no text selection while dragging with the mouse
+    if (!armed) hold = setTimeout(function () { armed = true; begin(); }, holdMs);
+
+    function dy() { return y - sy + (scroller ? scroller.scrollTop - s0 : 0) + (window.scrollY - w0); }
+    function begin() {
+      if (started) return;
+      started = true;
+      if (touch && navigator.vibrate) navigator.vibrate(15);
+      if (h.start) h.start();
+      // near the top or bottom edge of the grid, scroll it so the box can go past what's on screen
+      auto = setInterval(function () {
+        var r = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight }, edge = 40;
+        var nav = document.getElementById("bottomNav"), bottom = Math.min(r.bottom, window.innerHeight - (nav ? nav.offsetHeight : 0));
+        var step = y < r.top + edge ? -Math.ceil((r.top + edge - y) / 4) : y > bottom - edge ? Math.ceil((y - (bottom - edge)) / 4) : 0;
+        if (!step) return;
+        if (scroller && (step < 0 ? scroller.scrollTop > 0 : scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight)) scroller.scrollTop += step;
+        else window.scrollBy(0, step);
+        h.move(dy());
+      }, 30);
+    }
+    function onMove(ev) {
+      if (ev.pointerId !== id) return;
+      y = ev.clientY;
+      if (!started) {
+        if (Math.abs(ev.clientX - sx) + Math.abs(y - sy) < 6) return;
+        if (!armed) { clean(); return; } // moved before the hold finished: that's a scroll
+        begin();
+      }
+      ev.preventDefault();
+      h.move(dy());
+    }
+    function onUp(ev) {
+      if (ev.pointerId !== id) return;
+      var wasStarted = started, moved = started && Math.abs(dy()) >= 1;
+      clean();
+      if (wasStarted) {
+        // the click that follows the release mustn't land on whatever is now under the finger
+        var eat = function (c) { c.stopPropagation(); c.preventDefault(); };
+        document.addEventListener("click", eat, true);
+        setTimeout(function () { document.removeEventListener("click", eat, true); }, 0);
+      }
+      if (ev.type === "pointercancel") { if (wasStarted && h.cancel) h.cancel(); return; }
+      if (moved) h.end();
+      else if (wasStarted) { if (h.cancel) h.cancel(); }
+      else if (h.tap) h.tap();
+    }
+    // once a touch drag has started, the page mustn't scroll under the finger
+    function noScroll(ev) { if (started) ev.preventDefault(); }
+    function noMenu(ev) { ev.preventDefault(); }
+    function clean() {
+      clearTimeout(hold);
+      clearInterval(auto);
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onUp, true);
+      document.removeEventListener("touchmove", noScroll, { capture: true });
+      document.removeEventListener("contextmenu", noMenu, true);
+    }
+    document.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("pointercancel", onUp, true);
+    document.addEventListener("touchmove", noScroll, { passive: false, capture: true });
+    document.addEventListener("contextmenu", noMenu, true);
   }
 
   function wireWeekNav() {
