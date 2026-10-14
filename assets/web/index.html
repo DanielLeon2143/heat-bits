@@ -1239,6 +1239,19 @@
   .bnav-btn.active .bnav-icon { background: color-mix(in srgb, var(--accent) 16%, transparent); }
   .app.phone .main { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
 
+  /* phones, This Week: calendar, heat map, today's habits, trackers, then to-dos.
+     The two wrapper rows step aside (display: contents) so all five can be reordered. */
+  .app.phone .main.tw-page { display: flex; flex-direction: column; }
+  .app.phone .tw-page .week-top-row, .app.phone .tw-page .all-bottom-grid { display: contents; }
+  .app.phone .tw-page .week-top-main, .app.phone .tw-page .heatmap-wrap, .app.phone .tw-page .all-habits-section,
+  .app.phone .tw-page .week-trackers, .app.phone .tw-page .todo-section { flex: none; width: 100%; min-width: 0; box-sizing: border-box; }
+  .app.phone .tw-page .week-top-main { order: 1; }
+  .app.phone .tw-page .week-resize-handle { order: 2; }
+  .app.phone .tw-page .heatmap-wrap { order: 3; }
+  .app.phone .tw-page .all-habits-section { order: 4; margin-top: 24px; }
+  .app.phone .tw-page .week-trackers { order: 5; margin-top: 24px; }
+  .app.phone .tw-page .todo-section { order: 6; margin-top: 24px; }
+
   /* the habits sheet (opened from the grid tab) */
   .sheet-backdrop {
     position: fixed; inset: 0; z-index: 95; background: rgba(0,0,0,0.45);
@@ -2324,6 +2337,7 @@
     var main = document.getElementById("main");
 
     main.classList.toggle("habit-page", [ALL, CAL, THISWEEK, GRAPHS, SETTINGS].indexOf(state.selectedId) === -1);
+    main.classList.toggle("tw-page", state.selectedId === THISWEEK);
     var freshEntry = state.selectedId !== lastRenderedSelectedId;
     lastRenderedSelectedId = state.selectedId;
     var existingWeekScroll = document.querySelector(".week-scroll");
