@@ -107,6 +107,7 @@ and open `ws://<ip>:47811/hb/ws?token=…`. Remove the test device afterwards wi
 - `index.html` is huge. Use Grep and read with offsets, never the whole file at once.
 - Only one PC instance can bind 47811. A second one shows "port already in use" in Settings.
 - Windows asks for firewall permission on the first run. Without it, phones can't reach the PC.
-- README.md and pubspec.yaml contain mojibake (`â€"`, `â†'`) from an encoding round-trip. Don't rewrite
-  those files in a different encoding while making unrelated edits.
+- All text files are UTF-8 without a BOM, and README/pubspec contain `—` and `→`. Windows PowerShell 5.1
+  *displays* them as `â€"`, and `Get-Content | Set-Content` really corrupts them (and adds a BOM).
+  Edit with the Edit tool or `sed`, never with PowerShell's Set-Content.
 - Android needs `usesCleartextTraffic` (plain HTTP to 127.0.0.1 and to the PC). `prepare.dart` sets it.

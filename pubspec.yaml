@@ -16,7 +16,7 @@ dependencies:
   path_provider: ^2.1.5
   # pairing QR code (drawn on the PC) and scanner (on the phone)
   qr: ^3.0.2
-  mobile_scanner: ^6.0.2
+  mobile_scanner: ^7.4.2
   # "Export" on Android opens the share sheet
   share_plus: ^10.1.4
 

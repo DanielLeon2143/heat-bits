@@ -11,7 +11,8 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  final MobileScannerController _controller = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
+  final MobileScannerController _controller =
+      MobileScannerController(formats: const [BarcodeFormat.qrCode]);
   bool _done = false;
   String? _hint;
 
@@ -31,8 +32,49 @@ class _ScanScreenState extends State<ScanScreen> {
         Navigator.of(context).pop(v);
         return;
       }
-      setState(() => _hint = "That's not a Heat-Bits code. Use the one in Settings on your PC.");
+      setState(() => _hint =
+          "That's not a Heat-Bits code. Use the one in Settings on your PC.");
     }
+  }
+
+  /// The scanner's own error screen says only "An unexpected error occurred" in
+  /// release builds, whatever went wrong. Say what it was and what to do instead.
+  Widget _error(BuildContext context, MobileScannerException error) {
+    final String text;
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        text = "Heat-Bits isn't allowed to use the camera.\n\n"
+            'On your phone open Settings → Apps → Heat-Bits → Permissions → Camera and choose Allow, '
+            'then come back and tap Scan QR code again.';
+      case MobileScannerErrorCode.unsupported:
+        text = "This phone doesn't have a camera Heat-Bits can use.";
+      default:
+        final d = error.errorDetails;
+        text =
+            "The camera didn't start. If another app is using it, close that app and try again.\n\n"
+            '(${[d?.code, d?.message].whereType<String>().join(': ')})';
+    }
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.all(28),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.no_photography_outlined,
+              color: Colors.white70, size: 48),
+          const SizedBox(height: 16),
+          Text(text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 15)),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Type the code instead'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -44,30 +86,38 @@ class _ScanScreenState extends State<ScanScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
-      body: Stack(
-        children: [
-          MobileScanner(controller: _controller, onDetect: _onDetect),
-          Center(
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white70, width: 2),
-                borderRadius: BorderRadius.circular(12),
+      body: ValueListenableBuilder<MobileScannerState>(
+        valueListenable: _controller,
+        builder: (context, scanner, _) => Stack(
+          children: [
+            MobileScanner(
+                controller: _controller,
+                onDetect: _onDetect,
+                errorBuilder: _error),
+            if (scanner.error == null) ...[
+              Center(
+                child: Container(
+                  width: 240,
+                  height: 240,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white70, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
-            ),
-          ),
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 40,
-            child: Text(
-              _hint ?? 'On your PC: Heat-Bits → Settings → Devices & sync',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-            ),
-          ),
-        ],
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: 40,
+                child: Text(
+                  _hint ?? 'On your PC: Heat-Bits → Settings → Devices & sync',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
