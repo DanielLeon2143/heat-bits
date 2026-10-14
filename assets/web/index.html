@@ -1775,8 +1775,11 @@
     var es = new EventSource("/api/events?k=" + encodeURIComponent(HB.key));
     es.addEventListener("state", function (e) { try { hbApplyRemote(JSON.parse(e.data)); } catch (x) {} });
     es.addEventListener("status", function (e) { try { hbStatus = JSON.parse(e.data); hbShowStatus(); } catch (x) {} });
+    // updates sent while the stream was down (phone asleep, QR scanner open) are lost: catch up on every (re)connect
+    es.addEventListener("open", hbRefreshStatus);
     setInterval(function () { if (hbPendingRemote && !hbBusy()) hbApplyRemote(hbPendingRemote); }, 1200);
-    hbApi("/api/sync/status").then(function (s) { hbStatus = s; hbShowStatus(); }).catch(function () {});
+    hbRefreshStatus();
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) hbRefreshStatus(); });
     // the app asks for any edit not sent yet before it closes; going to the background sends it too
     window.__hbFlush = function () { return hbSaveTimer ? hbFlushSave() : Promise.resolve(); };
     document.addEventListener("visibilitychange", function () { if (document.hidden && hbSaveTimer) hbFlushSave(); });
@@ -1919,8 +1922,24 @@
         note.textContent = !s.paired ? "Not paired with a PC" : s.connected ? "Synced with " + (s.peerName || "your PC") + " · " + hbAgo(s.lastSync) : "Can't reach " + (s.peerName || "your PC");
       }
     }
-    var card = document.getElementById("syncCard");
-    if (card && !card.contains(document.activeElement)) renderSyncCard();
+    // redraw now, unless someone is typing in the card (a clicked button keeps focus, so only fields count);
+    // then redraw as soon as they leave the field
+    var card = document.getElementById("syncCard"), a = document.activeElement;
+    if (!card) return;
+    if (a && card.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) {
+      if (!card.hbWaiting) {
+        card.hbWaiting = true;
+        card.addEventListener("focusout", function () {
+          card.hbWaiting = false;
+          setTimeout(function () { if (!card.contains(document.activeElement)) renderSyncCard(); }, 0);
+        }, { once: true });
+      }
+      return;
+    }
+    renderSyncCard();
+  }
+  function hbRefreshStatus() {
+    hbApi("/api/sync/status").then(function (s) { hbStatus = s; hbShowStatus(); }).catch(function () {});
   }
 
   function renderSyncCard() {
@@ -1994,12 +2013,12 @@
 
     function msg(t) { var m = document.getElementById("syncMsg"); if (m) m.textContent = t || ""; }
     function on(id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); }
-    on("syncNewCode", function () { hbApi("/api/pair/newcode", {}).catch(function () {}); });
+    on("syncNewCode", function () { hbApi("/api/pair/newcode", {}).then(hbRefreshStatus).catch(function () {}); });
     on("syncScanBtn", function () { hbApi("/api/pair/scan", {}).catch(function () {}); });
     on("syncNowBtn", function () { msg("Syncing…"); hbApi("/api/sync/now", {}).then(function () { msg(""); }).catch(function () { msg(""); }); });
     on("syncUnpairBtn", function () {
       openConfirm("Unpair from " + (s.peerName || "your PC") + "?", "Your data stays on this phone, but it stops syncing until you pair again.", function () {
-        hbApi("/api/pair/forget", {}).catch(function () {});
+        hbApi("/api/pair/forget", {}).then(hbRefreshStatus).catch(function () {});
       });
     });
     on("syncConnectBtn", function () {
@@ -2007,13 +2026,13 @@
       var code = (document.getElementById("syncCodeInput").value || "").trim();
       if (!host || !code) { msg("Type the PC address and the code shown on your PC."); return; }
       msg("Connecting…");
-      hbApi("/api/pair/connect", { host: host, code: code }).then(function (r) { msg(r && r.ok ? "" : (r && r.error) || "Couldn't connect."); })
+      hbApi("/api/pair/connect", { host: host, code: code }).then(function (r) { msg(r && r.ok ? "" : (r && r.error) || "Couldn't connect."); if (r && r.ok) hbRefreshStatus(); })
         .catch(function () { msg("Couldn't connect."); });
     });
     el.querySelectorAll("[data-unpair]").forEach(function (b) {
       b.addEventListener("click", function () {
         var id = b.getAttribute("data-unpair");
-        openConfirm("Remove this phone?", "It stops syncing until you pair it again.", function () { hbApi("/api/devices/remove", { id: id }).catch(function () {}); });
+        openConfirm("Remove this phone?", "It stops syncing until you pair it again.", function () { hbApi("/api/devices/remove", { id: id }).then(hbRefreshStatus).catch(function () {}); });
       });
     });
   }
