@@ -11,3 +11,5 @@ build/
 .flutter-plugins-dependencies
 pubspec.lock
 *.apk
+.idea/
+*.iml
