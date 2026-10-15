@@ -619,14 +619,14 @@
      while the rows below move up with it */
   .all-habit-row.closing {
     pointer-events: none; overflow: hidden; box-sizing: border-box;
-    background: var(--accent); color: #fff; transition: background 0.12s ease, color 0.12s ease;
+    background: var(--accent); color: #fff; transition: background 0.1s ease, color 0.1s ease;
   }
   .all-habit-row.closing .row-goal-num, .all-habit-row.closing .row-complete-btn { color: #fff; border-color: transparent; background: transparent; }
-  .all-habit-row.closing > * { transition: transform 0.22s ease 0.12s; }
+  .all-habit-row.closing > * { transition: transform 0.2s ease 0.1s; }
   .all-habit-row.closed {
     height: 0 !important; padding-top: 0; padding-bottom: 0; border-bottom-color: transparent;
-    transition: background 0.12s ease, color 0.12s ease,
-      height 0.22s ease 0.12s, padding 0.22s ease 0.12s, border-color 0.22s ease 0.12s;
+    transition: background 0.1s ease, color 0.1s ease,
+      height 0.2s ease 0.1s, padding 0.2s ease 0.1s, border-color 0.2s ease 0.1s;
   }
   .all-habit-row.closed > * { transform: translateY(-140%); }
   .all-habit-row .inline-entry { flex-shrink: 0; }
@@ -6279,7 +6279,7 @@
     row.classList.add("closing");
     // two frames, so the starting height is in place before the fold begins
     requestAnimationFrame(function () { requestAnimationFrame(function () { row.classList.add("closed"); }); });
-    todayCloseTimer = setTimeout(redraw, 360);
+    todayCloseTimer = setTimeout(redraw, 310);
   }
 
   function renderAllHabitRows() {
