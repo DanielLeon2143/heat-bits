@@ -50,7 +50,11 @@ page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClien
   lists of `{id: …}` maps item by item. A real clash takes `b` (the incoming side, `preferB: true`).
   Delete vs. untouched → deleted. Delete vs. edit → the edit is kept.
 - The phone stores `base` (last agreed state). The PC bumps `store.version` on every change.
-- A first sync after pairing (`base == null`) takes the PC's data, unless the PC has none.
+- A first sync after pairing (`base == null`) keeps everything on both devices (`firstMerge`). Before it, the phone
+  peeks at the PC's data (`/hb/sync` with `peek: true`). Habits with the same name but different ids
+  (`habitNameClashes`) go to the page as `status.conflicts`, and nothing syncs until the user picks in the dialog
+  (`#clashModalBackdrop` → `/api/sync/resolve`): keep the PC's (the phone's is removed), keep the phone's (the PC's id goes
+  in `meta.firstDrop` and the PC drops it), or keep both with the phone's renamed.
 - QR payload: `heatbits://pair?h=<ip,ip>&p=<port>&c=<CODE>&id=<serverId>&n=<PC name>`.
 
 ### Dragging inside the app

@@ -24,6 +24,10 @@ class SyncClient {
   String? error;
   int? lastSync;
 
+  /// Habits with the same name on the phone and the PC, found before the first
+  /// sync. Nothing merges until the user picks or renames (see [resolve]).
+  List<Map<String, dynamic>>? conflicts;
+
   Map<String, dynamic>? get _pair => app.store.meta['pair'] is Map ? asMap(app.store.meta['pair']) : null;
   bool get paired => _pair != null;
   String? get peerName => _pair?['serverName']?.toString();
@@ -79,7 +83,9 @@ class SyncClient {
           'hosts': hosts,
           'lastHost': h,
         };
-        app.store.base = null; // first sync: take the PC's data
+        app.store.base = null; // first sync: merge what's on both
+        app.store.meta.remove('firstDrop');
+        conflicts = null;
         await app.store.saveNow();
         error = null;
         _backoff = 5;
@@ -104,7 +110,9 @@ class SyncClient {
     final ws = _ws;
     _ws = null;
     app.store.meta.remove('pair');
+    app.store.meta.remove('firstDrop');
     app.store.base = null;
+    conflicts = null;
     connected = false;
     error = null;
     _host = null;
@@ -244,14 +252,28 @@ class SyncClient {
     try {
       do {
         _again = false;
-        final sent = syncPart(app.store.local);
         final first = app.store.base == null;
+        final drop = _firstDrop;
+        if (first) {
+          // look at the PC's habits first: same-named ones need the user to decide
+          final peek = await httpJson('POST', _host!, port, '/hb/sync',
+              body: {'peek': true}, token: p['token'].toString(), timeout: const Duration(seconds: 15));
+          final clashes = habitNameClashes(syncPart(app.store.local), syncPart(asMap(peek['doc'])), skipPc: drop);
+          conflicts = clashes.isEmpty ? null : clashes;
+          if (conflicts != null) {
+            error = null;
+            connected = true;
+            return;
+          }
+        }
+        final sent = syncPart(app.store.local);
         final r = await httpJson('POST', _host!, port, '/hb/sync',
-            body: {'first': first, 'base': app.store.base ?? <String, dynamic>{}, 'doc': sent},
+            body: {'first': first, if (first) 'drop': drop, 'base': app.store.base ?? <String, dynamic>{}, 'doc': sent},
             token: p['token'].toString(),
             timeout: const Duration(seconds: 15));
         final merged = syncPart(asMap(r['doc']));
         app.store.base = merged;
+        if (first) app.store.meta.remove('firstDrop');
         // edits made on the phone while that request was in flight are layered on top
         final current = syncPart(app.store.local);
         final next = deepEq(current, sent) ? merged : asMap(merge3(sent, merged, current, preferB: true));
@@ -280,6 +302,35 @@ class SyncClient {
     }
   }
 
+  List<String> get _firstDrop =>
+      app.store.meta['firstDrop'] is List ? (app.store.meta['firstDrop'] as List).map((e) => e.toString()).toList() : <String>[];
+
+  /// The user's answers for [conflicts]: keep the PC's habit, keep the phone's,
+  /// or keep both with the phone's one renamed. Then the first sync goes ahead.
+  Future<void> resolve(List choices) async {
+    final habits = ((app.store.local['habits'] as List?) ?? const []).toList();
+    final drop = _firstDrop;
+    for (final c in choices.whereType<Map>()) {
+      final phoneId = c['phoneId']?.toString(), pcId = c['pcId']?.toString();
+      final i = habits.indexWhere((h) => h is Map && h['id']?.toString() == phoneId);
+      switch (c['keep']) {
+        case 'pc':
+          if (i != -1) habits.removeAt(i);
+        case 'phone':
+          if (pcId != null && !drop.contains(pcId)) drop.add(pcId);
+        case 'both':
+          final name = (c['name'] ?? '').toString().trim();
+          if (i != -1 && name.isNotEmpty) habits[i] = {...asMap(habits[i]), 'name': name};
+      }
+    }
+    app.store.meta['firstDrop'] = drop;
+    conflicts = null;
+    app.applyNetworkData({...syncPart(app.store.local), 'habits': habits});
+    await app.store.saveNow();
+    app.notifyStatus();
+    await wake();
+  }
+
   void _dropConnection() {
     _host = null;
     connected = false;
@@ -295,5 +346,6 @@ class SyncClient {
         'connected': connected,
         'lastSync': lastSync,
         'error': error,
+        'conflicts': conflicts,
       };
 }

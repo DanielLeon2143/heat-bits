@@ -124,8 +124,55 @@ const syncKeys = ['habits', 'todos', 'activities', 'payments'];
 Map<String, dynamic> syncPart(Map<String, dynamic> state) =>
     {for (final k in syncKeys) k: state[k] ?? <dynamic>[]};
 
-bool hasContent(Map<String, dynamic> part) =>
-    syncKeys.any((k) => part[k] is List && (part[k] as List).isNotEmpty);
-
 Map<String, dynamic> asMap(Object? v) =>
     v is Map ? v.map((k, val) => MapEntry(k.toString(), val)) : <String, dynamic>{};
+
+/// The first sync after pairing: nothing has been agreed yet, so everything on
+/// both devices is kept (as if both had added it). PC habits listed in [dropPc]
+/// are left out: the user chose the phone's habit of the same name instead.
+Map<String, dynamic> firstMerge(Map<String, dynamic> pc, Map<String, dynamic> phone, {Iterable<String> dropPc = const []}) {
+  final drop = dropPc.toSet();
+  final server = {
+    ...pc,
+    'habits': ((pc['habits'] as List?) ?? const [])
+        .where((h) => !(h is Map && drop.contains(h['id']?.toString())))
+        .toList(),
+  };
+  final empty = {for (final k in syncKeys) k: <dynamic>[]};
+  return asMap(merge3(empty, server, phone, preferB: true));
+}
+
+/// Habits that are different on the phone and the PC (different ids) but have
+/// the same name. Merging would leave two habits called the same, so the user
+/// picks one or renames one first. PC habits in [skipPc] are already decided.
+List<Map<String, dynamic>> habitNameClashes(Map<String, dynamic> phone, Map<String, dynamic> pc,
+    {Iterable<String> skipPc = const []}) {
+  String norm(Object? n) => (n ?? '').toString().trim().toLowerCase();
+  final skip = skipPc.toSet();
+  final pcAll = ((pc['habits'] as List?) ?? const []).whereType<Map>().toList();
+  final pcIds = pcAll.map((h) => h['id']?.toString()).toSet();
+  final pcOpen = pcAll.where((h) => !skip.contains(h['id']?.toString())).toList();
+  final out = <Map<String, dynamic>>[];
+  for (final h in ((phone['habits'] as List?) ?? const []).whereType<Map>()) {
+    if (pcIds.contains(h['id']?.toString())) continue; // the same habit, synced before
+    final n = norm(h['name']);
+    if (n.isEmpty) continue;
+    final match = pcOpen.where((p) => norm(p['name']) == n).firstOrNull;
+    if (match != null) out.add({'phone': _habitSummary(h), 'pc': _habitSummary(match)});
+  }
+  return out;
+}
+
+Map<String, dynamic> _habitSummary(Map h) {
+  final c = h['completions'];
+  final days = c is Map ? c.values.where((v) => v != null && v != false && v != 0).length : 0;
+  return {
+    'id': h['id']?.toString(),
+    'name': (h['name'] ?? '').toString(),
+    'type': (h['type'] ?? 'boolean').toString(),
+    'unit': (h['unit'] ?? '').toString(),
+    'color': h['color']?.toString(),
+    'days': days,
+    'trackers': h['subTrackers'] is List ? (h['subTrackers'] as List).length : 0,
+  };
+}

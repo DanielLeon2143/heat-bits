@@ -16,6 +16,7 @@ import 'store.dart';
 ///   GET  /api/events       live updates for the page (server-sent events: "state", "status")
 ///   POST /api/save         the page saved its data
 ///   GET  /api/sync/status  pairing / connection status for Settings → Devices & sync
+///   POST /api/sync/resolve the user's picks for same-named habits before the first sync
 ///   ...and the pairing buttons in that card (see _api below)
 ///
 /// Every /api call must carry the per-launch key, so other programs on the
@@ -187,6 +188,13 @@ class UiServer {
           final j = await readJson();
           final err = await app.client?.pairManual((j['host'] ?? '').toString(), (j['code'] ?? '').toString());
           await sendJson(req, {'ok': err == null, if (err != null) 'error': err});
+          return;
+        }
+      case '/api/sync/resolve':
+        {
+          final j = await readJson();
+          await app.client?.resolve(j['choices'] is List ? j['choices'] as List : const []);
+          await sendJson(req, {'ok': true});
           return;
         }
       case '/api/pair/forget':

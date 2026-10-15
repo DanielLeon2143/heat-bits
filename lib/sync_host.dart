@@ -224,10 +224,17 @@ class SyncHost {
       final j = asMap(jsonDecode(await readBody(req)));
       final clientDoc = syncPart(asMap(j['doc']));
       final serverDoc = syncPart(app.store.local);
+      if (j['peek'] == true) {
+        // a newly paired phone looks before it merges, to spot habits with the same name
+        _seen(device);
+        await sendJson(req, {'doc': serverDoc, 'version': _store.version});
+        return;
+      }
       Map<String, dynamic> merged;
       if (j['first'] == true) {
-        // a newly paired phone takes the PC's habits (unless the PC has none yet)
-        merged = hasContent(serverDoc) ? serverDoc : clientDoc;
+        // a newly paired phone: keep what's on both, minus the PC habits the user swapped for the phone's
+        final drop = (j['drop'] is List ? j['drop'] as List : const []).map((e) => e.toString());
+        merged = firstMerge(serverDoc, clientDoc, dropPc: drop);
       } else {
         merged = asMap(merge3(j['base'], serverDoc, clientDoc, preferB: true));
       }

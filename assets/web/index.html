@@ -526,6 +526,19 @@
   .modal .modal-sub { font-size: calc(12.5px * var(--fs, 1)); color: var(--ink-soft); margin-bottom: 14px; }
   .modal input { width: 100%; margin-bottom: 14px; }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  /* first sync: habits with the same name on the phone and the PC */
+  .modal.clash-modal { width: calc(400px * max(1, var(--fs, 1))); max-height: calc(100vh - 48px); overflow-y: auto; }
+  .clash-item { padding: 12px 0; border-top: 1px solid var(--border); }
+  .clash-name { font-weight: 600; font-size: calc(14px * var(--fs, 1)); margin-bottom: 8px; }
+  .clash-opt {
+    display: block; width: 100%; text-align: left; margin-bottom: 6px; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: none; color: var(--ink);
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .clash-opt span { display: block; color: var(--ink-soft); font-size: calc(12px * var(--fs, 1)); margin-top: 2px; }
+  .clash-opt.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .modal input.clash-rename { margin: 2px 0 6px; }
+  .clash-msg:not(:empty) { color: var(--danger, #d9534f); font-size: calc(12.5px * var(--fs, 1)); margin: 4px 0 10px; }
 
   .side-popover {
     position: fixed; z-index: 110; display: none;
@@ -1643,6 +1656,19 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="clashModalBackdrop">
+  <div class="modal clash-modal" role="dialog" aria-modal="true" aria-labelledby="clashTitle">
+    <h3 id="clashTitle">Same habit name on both</h3>
+    <div class="modal-sub" id="clashSub"></div>
+    <div id="clashList"></div>
+    <div class="clash-msg" id="clashMsg"></div>
+    <div class="modal-actions">
+      <button class="ghost-btn" id="clashLater">Not now</button>
+      <button class="primary-btn" id="clashSave">Merge</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="exportModalBackdrop">
   <div class="modal export-modal">
     <h3>Export &amp; import</h3>
@@ -1993,6 +2019,7 @@
     return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
   function hbShowStatus() {
+    hbCheckClashes();
     var s = hbStatus, note = document.getElementById("storageNote");
     if (note && s) {
       if (s.role === "host") {
@@ -2068,7 +2095,7 @@
     } else if (!s.paired) {
       html +=
         '<div class="sync-title">Connect to your PC</div>' +
-        '<div class="settings-note">On your PC, open Heat-Bits → Settings → Devices &amp; sync. Pairing copies your PC\'s habits to this phone, then changes on either one show up on the other.</div>' +
+        '<div class="settings-note">On your PC, open Heat-Bits → Settings → Devices &amp; sync. Pairing puts the habits from both together, then changes on either one show up on the other.</div>' +
         '<button class="primary-btn sync-scan" id="syncScanBtn">Scan QR code</button>' +
         '<div class="sync-sub">Or type it in</div>' +
         '<div class="sync-form">' +
@@ -2085,6 +2112,11 @@
           '<button class="ghost-btn" id="syncNowBtn">Sync now</button>' +
           '<button class="ghost-btn" id="syncUnpairBtn">Unpair</button>' +
         '</div>' +
+        ((s.conflicts || []).length
+          ? '<div class="settings-note">Waiting for you: ' + s.conflicts.length + (s.conflicts.length === 1 ? " habit has" : " habits have") +
+            ' the same name here and on ' + escapeHtml(s.peerName || "your PC") + '. Nothing syncs until you choose.</div>' +
+            '<button class="primary-btn sync-scan" id="syncClashBtn">Choose</button>'
+          : '') +
         (s.connected ? '' : '<div class="settings-note">Changes you make here are kept and sent when the phone is back on the same Wi-Fi as your PC (with Heat-Bits open there).</div>');
     }
     if (s.error) html += '<div class="sync-error">' + escapeHtml(s.error) + '</div>';
@@ -2095,6 +2127,7 @@
     function on(id, fn) { var b = document.getElementById(id); if (b) b.addEventListener("click", fn); }
     on("syncNewCode", function () { hbApi("/api/pair/newcode", {}).then(hbRefreshStatus).catch(function () {}); });
     on("syncScanBtn", function () { hbApi("/api/pair/scan", {}).catch(function () {}); });
+    on("syncClashBtn", function () { openClashModal(s.conflicts || []); });
     on("syncNowBtn", function () { msg("Syncing…"); hbApi("/api/sync/now", {}).then(function () { msg(""); }).catch(function () { msg(""); }); });
     on("syncUnpairBtn", function () {
       openConfirm("Unpair from " + (s.peerName || "your PC") + "?", "Your data stays on this phone, but it stops syncing until you pair again.", function () {
@@ -2115,6 +2148,76 @@
         openConfirm("Remove this phone?", "It stops syncing until you pair it again.", function () { hbApi("/api/devices/remove", { id: id }).then(hbRefreshStatus).catch(function () {}); });
       });
     });
+  }
+
+  // ---- first sync: the phone and the PC both have a habit with the same name ----
+  // The app holds the first sync back and lists them in status.conflicts; the user keeps one or renames the phone's.
+  var clashDismissed = null;
+  function clashKey(list) { return list.map(function (c) { return c.phone.id + ":" + c.pc.id; }).join(","); }
+  function hbCheckClashes() {
+    var list = hbStatus && hbStatus.conflicts, bd = document.getElementById("clashModalBackdrop");
+    if (!list || !list.length) { bd.classList.remove("open"); return; }
+    if (bd.classList.contains("open") || clashDismissed === clashKey(list)) return;
+    openClashModal(list);
+  }
+  function clashInfo(h) {
+    var bits = [h.days + (h.days === 1 ? " day" : " days") + " logged"];
+    if (h.type === "measurable") bits.push("measurable" + (h.unit ? " · " + h.unit : ""));
+    if (h.trackers) bits.push(h.trackers + (h.trackers === 1 ? " tracker" : " trackers"));
+    return escapeHtml(bits.join(", "));
+  }
+  function openClashModal(list) {
+    if (!list.length) return;
+    var bd = document.getElementById("clashModalBackdrop"), pc = escapeHtml((hbStatus && hbStatus.peerName) || "your PC");
+    var picks = list.map(function () { return null; });
+    document.getElementById("clashSub").innerHTML = "This phone and " + pc + " both have " +
+      (list.length === 1 ? "a habit" : "habits") + " with the same name. Keep one (the other is deleted), or keep both and rename this phone's.";
+    document.getElementById("clashMsg").textContent = "";
+    var box = document.getElementById("clashList");
+    box.innerHTML = list.map(function (c, i) {
+      return '<div class="clash-item" data-i="' + i + '">' +
+        '<div class="clash-name">' + escapeHtml(c.pc.name) + '</div>' +
+        '<button class="clash-opt" data-keep="pc">Keep the one on ' + pc + '<span>' + clashInfo(c.pc) + '</span></button>' +
+        '<button class="clash-opt" data-keep="phone">Keep this phone\'s<span>' + clashInfo(c.phone) + '</span></button>' +
+        '<button class="clash-opt" data-keep="both">Keep both, rename this phone\'s</button>' +
+        '<input class="field clash-rename hidden" maxlength="60" value="' + escapeHtml(c.phone.name.trim() + " (phone)") + '">' +
+      '</div>';
+    }).join("");
+    box.querySelectorAll(".clash-item").forEach(function (item) {
+      var i = +item.getAttribute("data-i"), input = item.querySelector(".clash-rename");
+      item.querySelectorAll(".clash-opt").forEach(function (b) {
+        b.addEventListener("click", function () {
+          picks[i] = b.getAttribute("data-keep");
+          item.querySelectorAll(".clash-opt").forEach(function (x) { x.classList.toggle("active", x === b); });
+          input.classList.toggle("hidden", picks[i] !== "both");
+          if (picks[i] === "both") { input.focus(); input.select(); }
+        });
+      });
+    });
+    document.getElementById("clashSave").onclick = function () {
+      var msg = document.getElementById("clashMsg"), choices = [];
+      var taken = {};
+      state.habits.forEach(function (h) { taken[(h.name || "").trim().toLowerCase()] = true; });
+      list.forEach(function (c) { taken[c.pc.name.trim().toLowerCase()] = true; });
+      for (var i = 0; i < list.length; i++) {
+        if (!picks[i]) { msg.textContent = "Choose what to do with “" + list[i].pc.name + "”."; return; }
+        var name = box.querySelectorAll(".clash-rename")[i].value.trim();
+        if (picks[i] === "both" && (!name || taken[name.toLowerCase()])) {
+          msg.textContent = name ? "“" + name + "” is taken. Pick another name." : "Type a new name for this phone's “" + list[i].phone.name + "”.";
+          return;
+        }
+        if (picks[i] === "both") taken[name.toLowerCase()] = true;
+        choices.push({ phoneId: list[i].phone.id, pcId: list[i].pc.id, keep: picks[i], name: name });
+      }
+      bd.classList.remove("open"); // before the app sends the merged data, which waits while a dialog is open
+      clashDismissed = null;
+      hbApi("/api/sync/resolve", { choices: choices }).then(hbRefreshStatus).catch(function () {});
+    };
+    document.getElementById("clashLater").onclick = function () {
+      clashDismissed = clashKey(list);
+      bd.classList.remove("open");
+    };
+    bd.classList.add("open");
   }
 
   // ---------------- state ----------------
@@ -7846,7 +7949,7 @@
 
 
   // ---------------- first run seed ----------------
-  // (a phone running the app starts empty: pairing brings the PC's habits over)
+  // (a phone running the app starts empty: pairing brings the PC's habits over and keeps the phone's)
   // only once per device: someone who removed every habit shouldn't get the examples back
   var firstRun = state.habits.length === 0 && !setting("demoAdded", false);
   if (firstRun && !(HB && HB.role === "client")) {

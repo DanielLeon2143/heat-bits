@@ -59,7 +59,8 @@ directly on your network.
 2. On the phone, open Heat-Bits, go to **Settings → Devices & sync** and tap **Scan QR code** (allow the camera).
 3. Point it at the pairing code on the PC screen.
 
-That's it. The PC's habits appear on the phone, and from then on both stay in sync. No camera? Type the PC
+That's it. The habits from both are put together, and from then on both stay in sync. If both have a habit with
+the same name, the phone asks which one to keep, or lets you keep both and rename one. No camera? Type the PC
 address and the 6-letter code shown under the QR code instead.
 
 After pairing:

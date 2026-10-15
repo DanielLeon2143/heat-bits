@@ -52,7 +52,7 @@ The Windows and Android apps sync over the home Wi-Fi.
   The app opens on **This Week** (configurable later in Settings → Always open on).
   - The tour's last step offers **Remove the example habits** (removes every habit with `demo: true`). A single
     habit can also be deleted from its page with the trash button `#deleteHabitBtn`, which asks for confirmation.
-- **Android (unpaired):** starts **empty** (no demo data) because pairing with the PC copies the PC's habits over.
+- **Android (unpaired):** starts **empty** (no demo data) because pairing brings the PC's habits over (anything already on the phone is kept too).
   The phone tour leads with pairing.
 - **The tour opens by itself** on that first launch only (fresh data, `state.settings.tutorialSeen` not set).
   Existing installs that update don't get it automatically; it's under Help.
