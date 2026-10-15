@@ -44,8 +44,13 @@ page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClien
   endpoint or field, change both `ui_server.dart` and the page (search for `hbApi(` in index.html).
 
 ### Sync model
-- Only `syncKeys = ['habits', 'todos', 'activities', 'payments']` sync ("payments" are called reminders
-  in the UI). Settings, theme, layout etc. stay per device.
+- The data is `syncKeys = ['habits', 'todos', 'activities', 'payments']` ("payments" are called reminders in the UI).
+- Settings sync too while **Sync settings** (`settings.syncSettings`, a switch in Devices & sync, on by default) is on
+  on *both* devices. `sharedPrefs()` = `settings` minus `localSettings` (tutorialSeen, demoAdded, soundDueDay,
+  syncSettings; the page has the same list as `HB_LOCAL_SETTINGS`) plus `allColor`. The phone sends `prefs` and
+  `prefsBase` (kept in `meta.prefsBase`) with each sync; the PC merges them with `mergePrefs` (the PC wins clashes the
+  first time) and answers with `prefs`. The page applies settings it's sent in `hbApplyRemote` and calls `applySettings()`.
+  `AppController._pagePart` adds `_prefs` to what the rev mechanism compares, so a stale page save can't undo synced settings.
 - Three-way merge: a change on one side wins. Changes on both sides merge maps key by key and merge
   lists of `{id: …}` maps item by item. A real clash takes `b` (the incoming side, `preferB: true`).
   Delete vs. untouched → deleted. Delete vs. edit → the edit is kept.

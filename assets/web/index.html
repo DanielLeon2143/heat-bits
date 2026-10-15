@@ -1843,6 +1843,8 @@
   // device arrive as "state" events. In a normal browser none of this runs.
   var HB = window.__HB_HOST__ || null;
   var HB_SYNC_KEYS = ["habits", "todos", "activities", "payments"];
+  // with "Sync settings" on, settings sync too, except these (same list as localSettings in merge.dart)
+  var HB_LOCAL_SETTINGS = ["tutorialSeen", "demoAdded", "soundDueDay", "syncSettings"];
   var hbRev = HB ? (HB.rev || 0) : 0;
   var hbSaveTimer = null, hbPendingRemote = null, hbStatus = null;
 
@@ -1878,10 +1880,18 @@
     if (hbBusy()) { hbPendingRemote = p; return; }
     hbPendingRemote = null;
     HB_SYNC_KEYS.forEach(function (k) { if (p.state[k] !== undefined) state[k] = p.state[k]; });
+    // the app's copy of the settings: same as ours, plus whatever the other device changed
+    if (p.state.settings && typeof p.state.settings === "object") {
+      var own = state.settings || {};
+      state.settings = Object.assign({}, p.state.settings);
+      HB_LOCAL_SETTINGS.forEach(function (k) { if (k in own) state.settings[k] = own[k]; else delete state.settings[k]; });
+    }
+    if (p.state.allColor) state.allColor = p.state.allColor;
     state = migrate(state);
     hbRev = p.rev;
     if (soundPrev) soundPrev = soundSnap(); // the other device's changes make no sound here
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    applySettings();
     render();
   }
   function hbStartEvents() {
@@ -2127,6 +2137,11 @@
           : '') +
         (s.connected ? '' : '<div class="settings-note">Changes you make here are kept and sent when the phone is back on the same Wi-Fi as your PC (with Heat-Bits open there).</div>');
     }
+    if (s.role === "host" || s.paired) {
+      html += toggleRow("syncSettingsToggle", "Sync settings",
+        "Colors, font, sound, layout and heat map stay the same on " + (s.role === "host" ? "this PC and your phones" : "this phone and " + escapeHtml(s.peerName || "your PC")) +
+        ". Turn off to keep this " + (s.role === "host" ? "PC" : "phone") + "'s own.", !!setting("syncSettings", true));
+    }
     if (s.error) html += '<div class="sync-error">' + escapeHtml(s.error) + '</div>';
     html += '<div class="sync-msg" id="syncMsg"></div>';
     el.innerHTML = html;
@@ -2136,6 +2151,8 @@
     on("syncNewCode", function () { hbApi("/api/pair/newcode", {}).then(hbRefreshStatus).catch(function () {}); });
     on("syncScanBtn", function () { hbApi("/api/pair/scan", {}).catch(function () {}); });
     on("syncClashBtn", function () { openClashModal(s.conflicts || []); });
+    var syncSet = document.getElementById("syncSettingsToggle");
+    if (syncSet) syncSet.addEventListener("change", function () { setSetting("syncSettings", syncSet.checked); hbFlushSave(); });
     on("syncNowBtn", function () { msg("Syncing…"); hbApi("/api/sync/now", {}).then(function () { msg(""); }).catch(function () { msg(""); }); });
     on("syncUnpairBtn", function () {
       openConfirm("Unpair from " + (s.peerName || "your PC") + "?", "Your data stays on this phone, but it stops syncing until you pair again.", function () {

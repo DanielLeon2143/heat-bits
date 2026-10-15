@@ -168,6 +168,8 @@ Combined heat map, stats bar, color swatch `#allColorToggle`, **Today** and **To
     links to the latest GitHub release's APK), paired phones.
   - Phone: **Scan QR code** `#syncScanBtn`, manual `#syncHostInput` + `#syncCodeInput` + `#syncConnectBtn`;
     when paired, **Sync now** `#syncNowBtn` and **Unpair** `#syncUnpairBtn`.
+  - Both: **Sync settings** `#syncSettingsToggle` (on by default): colors, font, sound, layout and heat map stay the
+    same on the PC and the phone. Turning it off on one device keeps that device's own settings.
 - **Appearance**: theme color presets (incl. Custom), Light/Dark/Auto, app color, All Habits heat map color,
   **Font size** `[data-fs-opt]`, font (incl. installed fonts `#localFontInput`), Reset `#settingsResetBtn`.
 - **Sound** `#soundCard`: **Sounds** on/off `#setSound` (on by default), Volume Low / Medium / High

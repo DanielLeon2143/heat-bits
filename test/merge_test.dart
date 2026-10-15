@@ -100,4 +100,38 @@ void main() {
     expect(c.first['phone']['days'], 1);
     expect(habitNameClashes(phone, pc, skipPc: ['h2']), isEmpty);
   });
+
+  test('settings that sync leave out the device-only ones, and keep them when applied', () {
+    final pc = {
+      'allColor': '#111111',
+      'settings': {'theme': 'dark', 'fontScale': 1.2, 'tutorialSeen': true, 'syncSettings': true}
+    };
+    final shared = sharedPrefs(pc);
+    expect(shared, {
+      'settings': {'theme': 'dark', 'fontScale': 1.2},
+      'allColor': '#111111'
+    });
+    final phone = {
+      'habits': [],
+      'allColor': '#222222',
+      'settings': {'theme': 'light', 'demoAdded': true, 'soundDueDay': '2026-10-14'}
+    };
+    final next = withSharedPrefs(phone, shared);
+    expect(next['allColor'], '#111111');
+    expect(next['settings'], {'theme': 'dark', 'fontScale': 1.2, 'demoAdded': true, 'soundDueDay': '2026-10-14'});
+    expect(syncsSettings(phone), isTrue);
+    expect(syncsSettings({'settings': {'syncSettings': false}}), isFalse);
+  });
+
+  test('the first settings sync keeps the PC\'s on a clash; after that, changes on either side win', () {
+    final pc = {'settings': {'theme': 'dark', 'font': 'serif'}};
+    final phone = {'settings': {'theme': 'light', 'sound': false}};
+    final first = mergePrefs(null, pc, phone);
+    expect(first['settings'], {'theme': 'dark', 'font': 'serif', 'sound': false});
+
+    final phoneLater = {'settings': {'theme': 'dark', 'font': 'serif', 'sound': true}};
+    final pcLater = {'settings': {'theme': 'paper', 'font': 'serif', 'sound': false}};
+    final m = mergePrefs(first, pcLater, phoneLater);
+    expect(m['settings'], {'theme': 'paper', 'font': 'serif', 'sound': true});
+  });
 }

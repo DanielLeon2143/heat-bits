@@ -176,3 +176,37 @@ Map<String, dynamic> _habitSummary(Map h) {
     'trackers': h['subTrackers'] is List ? (h['subTrackers'] as List).length : 0,
   };
 }
+
+// ---------------- settings ----------------
+// Settings sync too (colors, font, sound, layout…) while "Sync settings" is on, on both devices.
+// These stay on each device whatever the switch says.
+const localSettings = {'tutorialSeen', 'demoAdded', 'soundDueDay', 'syncSettings'};
+
+/// This device's "Sync settings" switch (on unless turned off).
+bool syncsSettings(Map<String, dynamic> state) => asMap(state['settings'])['syncSettings'] != false;
+
+/// The settings that sync, plus the app color (which the page keeps outside settings).
+Map<String, dynamic> sharedPrefs(Map<String, dynamic> state) {
+  final s = asMap(state['settings']);
+  return {
+    'settings': {for (final k in s.keys) if (!localSettings.contains(k)) k: s[k]},
+    if (state['allColor'] != null) 'allColor': state['allColor'],
+  };
+}
+
+/// [state] with its shared settings replaced by [prefs]; the device-only ones are kept.
+Map<String, dynamic> withSharedPrefs(Map<String, dynamic> state, Map<String, dynamic> prefs) {
+  final own = asMap(state['settings']);
+  return {
+    ...state,
+    'settings': {
+      ...asMap(prefs['settings']),
+      for (final k in own.keys) if (localSettings.contains(k)) k: own[k],
+    },
+    if (prefs['allColor'] != null) 'allColor': prefs['allColor'],
+  };
+}
+
+/// Settings sent by a phone, merged with the PC's. The first time (no [base]) the PC's win a clash.
+Map<String, dynamic> mergePrefs(Object? base, Map<String, dynamic> pc, Map<String, dynamic> phone) =>
+    asMap(merge3(base is Map ? base : null, pc, phone, preferB: base is Map));

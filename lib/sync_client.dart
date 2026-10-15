@@ -85,6 +85,7 @@ class SyncClient {
         };
         app.store.base = null; // first sync: merge what's on both
         app.store.meta.remove('firstDrop');
+        app.store.meta.remove('prefsBase');
         conflicts = null;
         await app.store.saveNow();
         error = null;
@@ -111,6 +112,7 @@ class SyncClient {
     _ws = null;
     app.store.meta.remove('pair');
     app.store.meta.remove('firstDrop');
+    app.store.meta.remove('prefsBase');
     app.store.base = null;
     conflicts = null;
     connected = false;
@@ -267,8 +269,17 @@ class SyncClient {
           }
         }
         final sent = syncPart(app.store.local);
+        final sendPrefs = syncsSettings(app.store.local);
+        final sentPrefs = sharedPrefs(app.store.local);
         final r = await httpJson('POST', _host!, port, '/hb/sync',
-            body: {'first': first, if (first) 'drop': drop, 'base': app.store.base ?? <String, dynamic>{}, 'doc': sent},
+            body: {
+              'first': first,
+              if (first) 'drop': drop,
+              'base': app.store.base ?? <String, dynamic>{},
+              'doc': sent,
+              if (sendPrefs) 'prefs': sentPrefs,
+              if (sendPrefs && app.store.meta['prefsBase'] is Map) 'prefsBase': app.store.meta['prefsBase'],
+            },
             token: p['token'].toString(),
             timeout: const Duration(seconds: 15));
         final merged = syncPart(asMap(r['doc']));
@@ -277,7 +288,17 @@ class SyncClient {
         // edits made on the phone while that request was in flight are layered on top
         final current = syncPart(app.store.local);
         final next = deepEq(current, sent) ? merged : asMap(merge3(sent, merged, current, preferB: true));
-        if (!deepEq(next, current)) app.applyNetworkData(next);
+        // settings come back only when both sides have "Sync settings" on
+        Map<String, dynamic>? nextPrefs;
+        if (sendPrefs && r['prefs'] is Map) {
+          final mergedPrefs = asMap(r['prefs']);
+          app.store.meta['prefsBase'] = mergedPrefs;
+          final nowPrefs = sharedPrefs(app.store.local);
+          nextPrefs = deepEq(nowPrefs, sentPrefs) ? mergedPrefs : asMap(merge3(sentPrefs, mergedPrefs, nowPrefs, preferB: true));
+          if (!deepEq(nextPrefs, mergedPrefs)) _again = true;
+          if (deepEq(nextPrefs, nowPrefs)) nextPrefs = null;
+        }
+        if (!deepEq(next, current) || nextPrefs != null) app.applyNetworkData(next, prefs: nextPrefs);
         if (!deepEq(next, merged)) _again = true; // still something the PC hasn't got
         lastSync = DateTime.now().millisecondsSinceEpoch;
         app.store.meta['lastSync'] = lastSync;

@@ -42,8 +42,11 @@ class AppController {
     return 'PC';
   }
 
+  /// What the page and the app keep in step: the synced data plus the settings that can sync.
+  static Map<String, dynamic> _pagePart(Map<String, dynamic> state) => {...syncPart(state), '_prefs': sharedPrefs(state)};
+
   Future<void> start() async {
-    _revData[uiRev] = syncPart(store.local);
+    _revData[uiRev] = _pagePart(store.local);
     await ui.start();
     if (isHost) {
       host = SyncHost(this);
@@ -64,15 +67,17 @@ class AppController {
   // ---------------- data from the page ----------------
 
   void onPageSave(Map<String, dynamic> state, int? rev) {
-    final current = syncPart(store.local);
-    var incoming = syncPart(state);
+    final current = _pagePart(store.local);
+    var incoming = _pagePart(state);
     final stale = rev != null && rev != uiRev;
     if (stale && _revData.containsKey(rev)) {
       // the page hadn't applied the latest synced data yet: keep both
       incoming = asMap(merge3(_revData[rev], current, incoming, preferB: true));
     }
-    final changed = !deepEq(incoming, current);
-    store.local = {...state, ...incoming};
+    // turning "Sync settings" on or off counts as a change, so the other device catches up
+    final changed = !deepEq(incoming, current) || syncsSettings(state) != syncsSettings(store.local);
+    final data = Map<String, dynamic>.of(incoming)..remove('_prefs');
+    store.local = withSharedPrefs({...state, ...data}, asMap(incoming['_prefs']));
     store.scheduleSave();
     if (stale) {
       if (changed) _pushToPage();
@@ -90,8 +95,10 @@ class AppController {
 
   // ---------------- data from the other device ----------------
 
-  void applyNetworkData(Map<String, dynamic> part) {
+  /// [prefs]: settings from the other device (only while "Sync settings" is on).
+  void applyNetworkData(Map<String, dynamic> part, {Map<String, dynamic>? prefs}) {
     store.local = {...store.local, ...part};
+    if (prefs != null) store.local = withSharedPrefs(store.local, prefs);
     if (isHost) {
       store.version++;
       host?.notifyChanged();
@@ -102,7 +109,7 @@ class AppController {
 
   void _pushToPage() {
     uiRev++;
-    _revData[uiRev] = syncPart(store.local);
+    _revData[uiRev] = _pagePart(store.local);
     _revData.removeWhere((k, _) => k < uiRev - 40);
     ui.sendState(uiRev, store.local);
   }

@@ -238,9 +238,17 @@ class SyncHost {
       } else {
         merged = asMap(merge3(j['base'], serverDoc, clientDoc, preferB: true));
       }
-      if (!deepEq(merged, serverDoc)) app.applyNetworkData(merged);
+      // settings: only when the phone sends them and this PC has "Sync settings" on too
+      Map<String, dynamic>? prefs;
+      var prefsChanged = false;
+      if (j['prefs'] is Map && syncsSettings(app.store.local)) {
+        final mine = sharedPrefs(app.store.local);
+        prefs = mergePrefs(j['prefsBase'], mine, asMap(j['prefs']));
+        prefsChanged = !deepEq(prefs, mine);
+      }
+      if (!deepEq(merged, serverDoc) || prefsChanged) app.applyNetworkData(merged, prefs: prefsChanged ? prefs : null);
       _seen(device);
-      await sendJson(req, {'doc': merged, 'version': _store.version});
+      await sendJson(req, {'doc': merged, 'version': _store.version, if (prefs != null) 'prefs': prefs});
       return;
     }
 
