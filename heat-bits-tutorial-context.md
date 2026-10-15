@@ -241,7 +241,7 @@ Week first; the tour puts the user's own choice back when it ends. The Settings 
 4. **Your year** `#heatmapWrap`: darker squares, click a past day to check off what you forgot.
 5. **Today** `#allHabitRows`: **Complete**, the initial-goal bar.
 6. **Trackers** `#weekTrackersPanel`: trackers log details inside a habit (sets per muscle); check them off here.
-7. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days; other days never break the streak.
+7. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days; off days don't break the streak.
 8. **Add trackers** `.subtracker-section` (same page): **+ Add tracker**, each with its own small heat map.
 9. **Add your own habit** `.new-habit` (collapsed: `.add-habit-item`): **Yes / No** or **Measurable**.
 10. **Calendar: month** `#calGrid` (Month view): click a day to see and check off its habits.
