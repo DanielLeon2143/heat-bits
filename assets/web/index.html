@@ -3909,7 +3909,7 @@
       (HB ? '<div class="graph-card settings-card" id="syncCard"></div>' : '') +
 
       // ---- Appearance ----
-      '<div class="graph-card settings-card">' +
+      '<div class="graph-card settings-card" id="appearanceCard">' +
         '<div class="graph-head"><span class="graph-name">Appearance</span>' +
           '<div class="graph-stats"><button class="ghost-btn" id="settingsResetBtn">Reset appearance</button></div></div>' +
 
@@ -3979,7 +3979,7 @@
       '</div>' +
 
       // ---- Layout ----
-      '<div class="graph-card settings-card">' +
+      '<div class="graph-card settings-card" id="layoutCard">' +
         '<div class="graph-head"><span class="graph-name">Layout</span></div>' +
         '<div class="settings-row"><div class="settings-label">Sidebar<span>Auto-hide keeps it out of the way: move the pointer to the left edge to show it.</span></div>' +
           '<div class="cal-view-toggle">' +
@@ -3996,7 +3996,7 @@
       '</div>' +
 
       // ---- Heat map ----
-      '<div class="graph-card settings-card">' +
+      '<div class="graph-card settings-card" id="heatmapCard">' +
         '<div class="graph-head"><span class="graph-name">Heat map</span></div>' +
         '<div class="settings-row stacked"><div class="settings-label">Layout<span>Applies to every habit, All Habits, This Week and each tracker\'s mini heat map.</span></div>' +
           '<div class="layout-grid">' +
@@ -7645,82 +7645,90 @@
     var tap = phone ? "Tap" : "Click";
     var steps = [];
 
+    // keep every text to about two lines of the card
     steps.push({
       title: "Welcome to Heat-Bits",
-      text: "Every habit gets a heat map: each square is a day, and it fills in when you do the habit." +
-        (unpaired ? " This phone keeps your habits in sync with Heat-Bits on your PC, over your Wi-Fi."
-          : hasDemo ? " We added two example habits so you can look around." : " Here's a quick look around.")
+      text: "Every habit gets a heat map: a square for each day you do it." +
+        (unpaired ? " This phone syncs with your PC." : hasDemo ? " Two examples to try." : "")
     });
     if (unpaired) steps.push({
       page: SETTINGS, target: "#syncCard", title: "Connect to your PC",
-      text: "On your PC, open Heat-Bits → <b>Settings</b> → <b>Devices &amp; sync</b>. Then tap <b>Scan QR code</b> here and point the camera at it. Both need to be on the same Wi-Fi."
+      text: "On your PC: <b>Settings</b> → <b>Devices &amp; sync</b>. Then tap <b>Scan QR code</b> here, on the same Wi-Fi."
     });
     steps.push({
       page: THISWEEK, target: "#weekWrap", title: "Your week",
-      text: "Plan your week hour by hour. Habits with a set time show up on every day they repeat, next to your activities, reminders and to-dos. " +
-        tap + " an empty slot, or <b>+</b> above the grid, to add one. <b>‹ ›</b> change the week and <b>Today</b> jumps back."
+      text: "Plan your week hour by hour. " + tap + " an empty slot or <b>+</b> to add something."
     });
     steps.push({
       page: THISWEEK, target: "#weekWrap", title: "Moving things around",
       text: phone
-        ? "Hold a box for half a second, then drag it to another time or day. Drag the bar at its bottom to change how long it takes. Tap a box twice to edit it. Hold it and let go without moving to show its delete button."
-        : "Drag a box to another time or day, and drag its bottom edge to change how long it takes. Double-click a box to edit it."
+        ? "Hold a box, then drag to move it. Drag its bottom bar to resize. Tap twice to edit."
+        : "Drag a box to move it, or its bottom edge to resize. Double-click to edit."
     });
     steps.push({
       page: THISWEEK, target: "#heatmapWrap", title: "Your year",
-      text: "Each square is a day. Darker squares are days you did more of your habits, and a thin outline marks a perfect day. " +
-        tap + " a past day to check off anything you forgot."
+      text: "Darker squares mean more habits done. " + tap + " a past day to check off what you forgot."
     });
     steps.push({
       page: THISWEEK, target: "#allHabitRows", title: "Today",
-      text: "Today's habits. " + tap + " <b>Complete</b> when you've done one: it leaves the list and today's square fills in. The bar shows how close you are to your initial goal."
+      text: tap + " <b>Complete</b> when you've done a habit. The bar shows your initial goal."
     });
     steps.push({
       page: THISWEEK, target: "#weekTrackersPanel", title: "Trackers",
-      text: "Trackers log something more specific within a habit. A gym habit could track each muscle group, a reading habit the pages you read. " +
-        "Pick a habit here and check off its trackers for today. " +
-        (phone ? "Add trackers from the habit's own page (<b>Habits</b> → the habit)." : "You add them on the habit's own page.")
+      text: "Trackers log details inside a habit, like sets per muscle. Check them off here."
     });
     if (phone) {
       steps.push({
         target: "#bottomNav", title: "Getting around",
-        text: "Switch pages here. <b>Habits</b> opens all your habits: tap one to see its own page, or <b>New habit</b> to add one. Pick <b>Yes / No</b>, or <b>Measurable</b> to log a number like km or pages."
+        text: "Switch pages here. <b>Habits</b> opens each habit, its trackers, and <b>New habit</b>."
       });
     } else {
       if (habit) steps.push({
         page: habit.id, target: "#dayToggleRow", title: "A habit's own page",
-        text: "Each habit has its own page with streaks and its own heat map. Pick the days it repeats here: other days never break your streak. Your first target is 14 days in a row, and the pencil changes it."
+        text: "Pick the days a habit repeats. Other days never break your streak."
       });
       if (habit) steps.push({
         page: habit.id, target: ".subtracker-section", title: "Add trackers",
-        text: "Down here, <b>+ Add tracker</b> splits a habit into the parts you want to follow, each with its own small heat map. " +
-          "Pick <b>Yes / No</b> (did I train legs?) or <b>Measurable</b> (how many sets?). <b>Graphs</b> compares them over time."
+        text: "<b>+ Add tracker</b> splits a habit into parts, each with its own small heat map."
       });
       steps.push({
         target: collapsed ? ".add-habit-item" : ".new-habit", title: "Add your own habit",
-        text: (collapsed ? "Click <b>+</b> to add a habit." : "Type a name here.") +
-          " Pick <b>Yes / No</b>, or <b>Measurable</b> to log a number like km or pages."
-      });
-      steps.push({
-        page: CAL, target: ["#calGrid", "#weekWrap"], title: "Calendar",
-        text: "The whole month at a glance. Switch to <b>Week</b> to plan by the hour: click an empty slot to add a habit, activity, reminder or to-do."
-      });
-      steps.push({
-        page: GRAPHS, target: "#main .graph-card", title: "Graphs",
-        text: "See how you're doing over time: where your calendar time goes, how often you complete your habits, and each habit's history."
-      });
-      var host = HB && HB.role === "host";
-      steps.push({
-        page: SETTINGS, target: host ? "#syncCard" : "#main .settings-card .settings-row", title: "Settings",
-        text: host
-          ? "Pair your Android phone here, or scan the second code to download the app. Further down: colors, font size and the heat map layout."
-          : "Make it yours: colors, light or dark, font size and the heat map layout."
+        text: (collapsed ? "Click <b>+</b>, then pick" : "Type a name, then pick") +
+          " <b>Yes / No</b> or <b>Measurable</b> (a number like km)."
       });
     }
     steps.push({
+      page: CAL, calView: "month", target: "#calGrid", title: "Calendar: month",
+      text: "The whole month at a glance. " + tap + " a day to see and check off its habits."
+    });
+    steps.push({
+      page: CAL, calView: "week", target: ".cal-panel", title: "Calendar: week",
+      text: "<b>Week</b> plans by the hour. Switch views with <b>Month</b> / <b>Week</b> at the top."
+    });
+    steps.push({
+      page: GRAPHS, target: "#main .graph-card", title: "Graphs",
+      text: "Your progress over time: completion rates, calendar time and each habit."
+    });
+    if (HB && HB.role === "host") steps.push({
+      page: SETTINGS, target: "#syncCard", title: "Your phone",
+      text: "Pair your Android phone here, or scan the second code to get the app."
+    });
+    steps.push({
+      page: SETTINGS, target: "#appearanceCard", title: "Appearance",
+      text: "Theme colors, light or dark, the app color, and the font and its size."
+    });
+    steps.push({
+      page: SETTINGS, target: "#layoutCard", title: "Layout",
+      text: "The page Heat-Bits opens on, and what to hide" + (phone ? "." : ", like the sidebar or page titles.")
+    });
+    steps.push({
+      page: SETTINGS, target: "#heatmapCard", title: "Heat map",
+      text: "Show heat maps by calendar year, centered on today, or with today on the right."
+    });
+    steps.push({
       page: phone ? SETTINGS : null, target: phone ? "#settingsTourBtn" : (collapsed ? ".help-item" : "#helpOpenBtn"),
       title: "That's it",
-      text: "You can open this tour again any time from " + (phone ? "<b>Settings</b>." : "<b>Help</b>."),
+      text: "Open this tour again any time from " + (phone ? "<b>Settings</b>." : "<b>Help</b>."),
       extra: hasDemo ? "removeDemo" : null
     });
     return steps;
@@ -7732,7 +7740,7 @@
     // already open: start over in place (keeps the one history entry and the page to return to)
     var again = tour;
     if (again) clearInterval(again.timer);
-    tour = { steps: tourSteps(), i: 0, from: again ? again.from : state.selectedId };
+    tour = { steps: tourSteps(), i: 0, from: again ? again.from : state.selectedId, calView: again ? again.calView : calViewMode };
     tourEl.classList.add("open");
     if (!again) try { history.pushState({ hbTour: 1 }, ""); } catch (e) {} // Android's back button closes it
     tour.timer = setInterval(tourPlace, 150); // keeps up with re-renders and late layout
@@ -7741,8 +7749,9 @@
   function endTour(fromBack) {
     if (!tour) return;
     clearInterval(tour.timer);
-    var from = tour.from;
+    var from = tour.from, calView = tour.calView;
     tour = null;
+    if (calViewMode !== calView) { calViewMode = calView; if (state.selectedId === CAL) render(); }
     tourEl.classList.remove("open");
     if (!fromBack && history.state && history.state.hbTour) history.back();
     // back to the page the tour started on
@@ -7752,7 +7761,14 @@
   }
   function tourShow() {
     var st = tour.steps[tour.i], last = tour.i === tour.steps.length - 1;
-    if (st.page && state.selectedId !== st.page) { state.selectedId = st.page; saveState(); render(); }
+    var redraw = false;
+    if (st.calView && calViewMode !== st.calView) {
+      calViewMode = st.calView;
+      if (st.calView === "week") weekAnchorKey = todayKey();
+      redraw = true;
+    }
+    if (st.page && state.selectedId !== st.page) { state.selectedId = st.page; saveState(); redraw = true; }
+    if (redraw) render();
     document.getElementById("tourCount").textContent = (tour.i + 1) + " of " + tour.steps.length;
     document.getElementById("tourTitle").textContent = st.title;
     document.getElementById("tourText").innerHTML = st.text;
@@ -7768,7 +7784,7 @@
       if (TOUR_PAGES.indexOf(state.selectedId) === -1 && !getHabit(state.selectedId)) state.selectedId = THISWEEK;
       if (TOUR_PAGES.indexOf(tour.from) === -1 && !getHabit(tour.from)) tour.from = THISWEEK;
       saveState(); render();
-      extra.textContent = "Removed. Add your own habits whenever you're ready.";
+      extra.textContent = "Removed. Add your own habits when you're ready.";
     });
     var el = tourFind(st.target);
     // tall targets scroll to their top, so the start of what's explained is on screen

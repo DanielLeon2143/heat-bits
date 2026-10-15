@@ -230,39 +230,46 @@ Targets are looked up again every 150 ms, so re-renders and sync updates don't l
 target is missing, the card shows centered with the page dimmed. When the tour ends, the app goes back to the page
 the user was on. The steps come from `tourSteps()`, which builds them for the current layout.
 
-### PC / web, wide window (13 steps; 11 if there are no habits)
-1. **Welcome to Heat-Bits** (no target). Mentions the two example habits when they're there.
-2. **Your week** `#weekWrap` (This Week): what the week calendar is for. Habits with a set time show up on every
-   day they repeat, next to activities, reminders and to-dos. Click an empty slot or **+** to add; **‹ ›** change
-   the week, **Today** jumps back.
-3. **Moving things around** `#weekWrap`: drag to move to another time or day; drag the bottom edge to change the
-   length; double-click to edit.
-4. **Your year** `#heatmapWrap`: darker squares, the perfect-day outline, click a past day to check things off.
-5. **Today** `#allHabitRows`: **Complete**, the initial-goal bar.
-6. **Trackers** `#weekTrackersPanel`: trackers log something more specific within a habit (each muscle group in a
-   gym habit, pages in a reading habit). Pick a habit and check off its trackers for today; they're added on the
-   habit's own page.
-7. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days, and the 14-day initial goal with its pencil.
-8. **Add trackers** `.subtracker-section` (same page): **+ Add tracker**, Yes / No or Measurable, each with its own
-   small heat map; Graphs compares them.
-9. **Add your own habit** `.new-habit` (collapsed: `.add-habit-item`): **Yes / No** or **Measurable**.
-10. **Calendar** `#calGrid` (or `#weekWrap` if it's in week view): Month at a glance, **Week** to plan by the hour.
-11. **Graphs** first `.graph-card`.
-12. **Settings**: Windows app → `#syncCard` (pairing + the app download code); browser → the Theme colors row.
-13. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
+Every step's text is kept to about two lines of the card. Steps with `calView` switch the Calendar to Month or
+Week first; the tour puts the user's own choice back when it ends. The Settings cards have ids for the tour:
+`#appearanceCard`, `#layoutCard`, `#heatmapCard`.
 
-### Phone layout (≤ 700 px; 8 steps, 9 on an unpaired Android phone)
-1. **Welcome**. On an unpaired phone it says the phone syncs with Heat-Bits on the PC over Wi-Fi.
-2. *(unpaired Android only)* **Connect to your PC** `#syncCard` (Settings): open Settings → Devices & sync on the
-   PC, then **Scan QR code** here, same Wi-Fi.
-3. **Your week** `#weekWrap`: what the week calendar is for; tap an empty slot or **+** to add; **‹ ›** and **Today**.
-4. **Moving things around** `#weekWrap`: hold half a second then drag; the bar at the bottom changes the length;
-   tap twice to edit; hold and let go without moving to show the delete button.
+### PC / web, wide window (16 steps in a browser, 17 in the Windows app; 2 fewer with no habits)
+1. **Welcome to Heat-Bits** (no target). Mentions the two example habits when they're there.
+2. **Your week** `#weekWrap` (This Week): plan by the hour; click an empty slot or **+** to add.
+3. **Moving things around** `#weekWrap`: drag to move, drag the bottom edge to resize, double-click to edit.
+4. **Your year** `#heatmapWrap`: darker squares, click a past day to check off what you forgot.
+5. **Today** `#allHabitRows`: **Complete**, the initial-goal bar.
+6. **Trackers** `#weekTrackersPanel`: trackers log details inside a habit (sets per muscle); check them off here.
+7. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days; other days never break the streak.
+8. **Add trackers** `.subtracker-section` (same page): **+ Add tracker**, each with its own small heat map.
+9. **Add your own habit** `.new-habit` (collapsed: `.add-habit-item`): **Yes / No** or **Measurable**.
+10. **Calendar: month** `#calGrid` (Month view): click a day to see and check off its habits.
+11. **Calendar: week** `.cal-panel` (Week view): plan by the hour; **Month** / **Week** switch views.
+12. **Graphs** first `.graph-card`.
+13. *(Windows app only)* **Your phone** `#syncCard`: pairing, and the code to download the Android app.
+14. **Appearance** `#appearanceCard`: theme colors, light or dark, app color, font and size.
+15. **Layout** `#layoutCard`: the start page, and what to hide (sidebar, page titles).
+16. **Heat map** `#heatmapCard`: calendar year, centered on today, or today on the right.
+17. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
+
+### Phone layout (≤ 700 px; 14 steps, 15 on an unpaired Android phone)
+1. **Welcome**. On an unpaired phone it says the phone syncs with the PC.
+2. *(unpaired Android only)* **Connect to your PC** `#syncCard` (Settings): Settings → Devices & sync on the PC,
+   then **Scan QR code** here, same Wi-Fi.
+3. **Your week** `#weekWrap`: tap an empty slot or **+** to add.
+4. **Moving things around** `#weekWrap`: hold, then drag; the bottom bar resizes; tap twice to edit.
 5. **Your year** `#heatmapWrap`.
 6. **Today** `#allHabitRows`.
-7. **Trackers** `#weekTrackersPanel`: what trackers are for; add them from the habit's page (Habits → the habit).
-8. **Getting around** `#bottomNav`: the tabs; **Habits** opens your habits and **New habit**.
-9. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
+7. **Trackers** `#weekTrackersPanel`.
+8. **Getting around** `#bottomNav`: the tabs; **Habits** opens each habit, its trackers, and **New habit**.
+9. **Calendar: month** `#calGrid`.
+10. **Calendar: week** `.cal-panel`.
+11. **Graphs**.
+12. **Appearance** `#appearanceCard`.
+13. **Layout** `#layoutCard`.
+14. **Heat map** `#heatmapCard`.
+15. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
 
 Possible next additions, shown once the first time a feature is used: the Just this day / Weekly pattern / All days
 question (first move on the calendar), and Graphs' **?** button.
