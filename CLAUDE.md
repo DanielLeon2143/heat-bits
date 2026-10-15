@@ -70,7 +70,7 @@ While dragging near the top or bottom of the screen, the page itself scrolls (ph
 
 ### Sounds
 Section `sounds` in index.html: soft tones made with Web Audio (no sound files), switched in Settings → Sound
-(`sound`, `soundVolume`, `soundTaps`, per device). Data sounds (complete, tracker, goal, perfect day, to-do, paid, undo)
+(`sound`, `soundVolume`, `soundPitch`, `soundTaps`, per device). Data sounds (complete, tracker, goal, perfect day, to-do, paid, undo)
 are found in `saveState()` by `soundCheck()`, which compares a snapshot (`soundSnap()`) before and after. So a new
 place that ticks something needs no extra call, as long as it calls `saveState()`. `hbApplyRemote` refreshes the snapshot
 silently, so synced changes make no sound. Never play sounds from `render*`. Taps come from one capture-phase click
