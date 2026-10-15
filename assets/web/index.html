@@ -615,17 +615,20 @@
   }
   .row-complete-btn:hover { filter: brightness(1.08); }
   .row-complete-btn.done { background: transparent; color: var(--accent); }
-  /* completing a habit in Today: tick, then the row slides away and folds shut */
-  .row-complete-btn.just-done { animation: row-tick 0.3s ease; }
-  @keyframes row-tick { 0% { transform: scale(0.85); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
-  .all-habit-row .row-goal-bar span { transition: width 0.3s ease; }
-  .all-habit-row.closing { pointer-events: none; overflow: hidden; box-sizing: border-box; }
+  /* completing a habit in Today: the row fills with the app color, then slides up out of sight
+     while the rows below move up with it */
+  .all-habit-row.closing {
+    pointer-events: none; overflow: hidden; box-sizing: border-box;
+    background: var(--accent); color: #fff; transition: background 0.12s ease, color 0.12s ease;
+  }
+  .all-habit-row.closing .row-goal-num, .all-habit-row.closing .row-complete-btn { color: #fff; border-color: transparent; background: transparent; }
+  .all-habit-row.closing > * { transition: transform 0.22s ease 0.12s; }
   .all-habit-row.closed {
     height: 0 !important; padding-top: 0; padding-bottom: 0; border-bottom-color: transparent;
-    opacity: 0; transform: translateX(24px);
-    transition: opacity 0.25s ease 0.3s, transform 0.25s ease 0.3s,
-      height 0.25s ease 0.45s, padding 0.25s ease 0.45s, border-color 0.25s ease 0.45s;
+    transition: background 0.12s ease, color 0.12s ease,
+      height 0.22s ease 0.12s, padding 0.22s ease 0.12s, border-color 0.22s ease 0.12s;
   }
+  .all-habit-row.closed > * { transform: translateY(-140%); }
   .all-habit-row .inline-entry { flex-shrink: 0; }
   .all-habit-row .inline-entry input { width: 90px; padding: 4px 8px; margin: 0; }
   .all-habit-row .row-complete-btn { padding: 4px 12px; font-size: calc(12.5px * var(--fs, 1)); }
@@ -6259,8 +6262,8 @@
   // ---------------- all-habits today list ----------------
   var allInlineOpen = {}; // habitId -> whether its measurable entry box is open
 
-  // Completing a habit in Today: the button ticks and the goal bar steps up, then the row
-  // slides away and folds shut before the list redraws without it.
+  // Completing a habit in Today: the row fills with the app color, then slides up and shuts
+  // while the rows below move up, before the list redraws without it.
   var todayCloseTimer = null;
   function closeTodayRow(row, h, label) {
     // several rows can be closing at once: they all wait for one redraw after the last
@@ -6269,18 +6272,14 @@
     if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) { redraw(); return; }
     var end = row.querySelector(".inline-entry") || row.querySelector(".row-complete-btn");
     var btn = document.createElement("button");
-    btn.className = "row-complete-btn done just-done";
+    btn.className = "row-complete-btn done";
     btn.textContent = label;
     if (end) end.replaceWith(btn);
-    var goalTarget = solidTarget(h), goalNow = Math.min(goalTarget, solidProgress(h));
-    var bar = row.querySelector(".row-goal-bar span"), num = row.querySelector(".row-goal-num");
-    if (bar) bar.style.width = Math.round(100 * goalNow / goalTarget) + "%";
-    if (num) num.textContent = goalNow + "/" + goalTarget;
     row.style.height = row.offsetHeight + "px";
     row.classList.add("closing");
     // two frames, so the starting height is in place before the fold begins
     requestAnimationFrame(function () { requestAnimationFrame(function () { row.classList.add("closed"); }); });
-    todayCloseTimer = setTimeout(redraw, 750);
+    todayCloseTimer = setTimeout(redraw, 360);
   }
 
   function renderAllHabitRows() {
