@@ -1874,6 +1874,7 @@
     HB_SYNC_KEYS.forEach(function (k) { if (p.state[k] !== undefined) state[k] = p.state[k]; });
     state = migrate(state);
     hbRev = p.rev;
+    if (soundPrev) soundPrev = soundSnap(); // the other device's changes make no sound here
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
     render();
   }
@@ -1931,6 +1932,7 @@
       if (fire(d.src, "dragstart", d.x, d.y).defaultPrevented || !d.dt.types.length) { d = null; return; }
       d.started = true;
       if (navigator.vibrate && d.touch) navigator.vibrate(15);
+      playSound("pick");
       var label = d.src.closest(".todo-row, .cal-habit-row, .event-block, .week-allday-chip, [data-id]") || d.src;
       d.ghost = document.createElement("div");
       d.ghost.className = "hb-drag-ghost";
@@ -1967,7 +1969,7 @@
         clearInterval(cur.scroll);
         cur.ghost.remove();
         cur.src.classList.remove("dragging");
-        if (drop && cur.ok && cur.over) fire(cur.over, "drop", cur.x, cur.y);
+        if (drop && cur.ok && cur.over) { playSound("drop"); fire(cur.over, "drop", cur.x, cur.y); }
         else if (cur.over) fire(cur.over, "dragleave", cur.x, cur.y);
         fire(cur.src, "dragend", cur.x, cur.y);
         // the press and release can land on different elements: don't let that count as a click
@@ -2268,6 +2270,7 @@
   function saveState() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
     hbQueueSave();
+    soundCheck();
   }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -4081,6 +4084,19 @@
         '</div>' +
       '</div>' +
 
+      // ---- Sound ----
+      '<div class="graph-card settings-card" id="soundCard">' +
+        '<div class="graph-head"><span class="graph-name">Sound</span></div>' +
+        toggleRow("setSound", "Sounds", "Soft sounds when you complete habits, trackers and to-dos, and a chime for a perfect day.", !!setting("sound", true)) +
+        '<div class="settings-row"><div class="settings-label">Volume<span>How loud the sounds are.</span></div>' +
+          '<div class="cal-view-toggle">' +
+            [["low", "Low"], ["medium", "Medium"], ["high", "High"]].map(function (o) {
+              return '<button class="view-toggle-btn' + (setting("soundVolume", "medium") === o[0] ? " active" : "") + '" data-sound-vol="' + o[0] + '">' + o[1] + '</button>';
+            }).join("") +
+          '</div></div>' +
+        toggleRow("setSoundTaps", "Taps and drags", "Soft clicks for buttons, and when you pick up and drop things.", !!setting("soundTaps", true)) +
+      '</div>' +
+
       // ---- Layout ----
       '<div class="graph-card settings-card" id="layoutCard">' +
         '<div class="graph-head"><span class="graph-name">Layout</span></div>' +
@@ -4179,6 +4195,15 @@
       });
     });
     document.getElementById("setStartPage").addEventListener("change", function () { setSetting("startPage", this.value); });
+    document.getElementById("setSound").addEventListener("change", function () { setSetting("sound", this.checked); playSound("complete"); });
+    document.getElementById("setSoundTaps").addEventListener("change", function () { setSetting("soundTaps", this.checked); });
+    main.querySelectorAll("[data-sound-vol]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        setSetting("soundVolume", b.getAttribute("data-sound-vol"));
+        main.querySelectorAll("[data-sound-vol]").forEach(function (x) { x.classList.toggle("active", x === b); });
+        playSound("complete"); // a sample at the new volume
+      });
+    });
     document.getElementById("setHideTitles").addEventListener("change", function () { setSetting("hidePageTitles", this.checked); rerender(); });
     document.getElementById("setHideTodoDates").addEventListener("change", function () { setSetting("hideTodoDates", this.checked); applySettings(); });
     document.getElementById("setHideKindIcons").addEventListener("change", function () { setSetting("hideKindIcons", this.checked); applySettings(); });
@@ -4914,6 +4939,7 @@
       if (started) return;
       started = true;
       if (touch && navigator.vibrate) navigator.vibrate(15);
+      playSound("pick");
       if (h.start) h.start();
       // near the top or bottom edge of the grid, scroll it so the box can go past what's on screen
       auto = setInterval(function () {
@@ -4948,7 +4974,7 @@
         setTimeout(function () { document.removeEventListener("click", eat, true); }, 0);
       }
       if (ev.type === "pointercancel") { if (wasStarted && h.cancel) h.cancel(); return; }
-      if (moved) h.end();
+      if (moved) { playSound("drop"); h.end(); }
       else if (wasStarted) { if (h.cancel) h.cancel(); }
       else if (h.tap) h.tap();
     }
@@ -7948,6 +7974,145 @@
   }, true);
 
 
+  // ---------------- sounds ----------------
+  // Soft tones made on the fly (no sound files). Data sounds are worked out in saveState() by comparing
+  // a small snapshot before and after, so the many places that tick a habit don't each need a call,
+  // and data arriving from the other device (hbApplyRemote) stays silent.
+  var audioCtx = null, soundPrev = null, soundAt = 0, tapTimer = null;
+  var SOUND_VOL = { low: 0.5, medium: 1, high: 1.6 };
+  // each note: [frequency Hz, start s, length s, wave, loudness, glide to Hz]
+  var SOUNDS = {
+    tap: [[1400, 0, 0.03, "triangle", 0.25]],
+    pick: [[520, 0, 0.08, "sine", 0.5, 700]],
+    drop: [[700, 0, 0.09, "sine", 0.5, 480]],
+    complete: [[659.25, 0, 0.16, "sine", 0.9], [987.77, 0.07, 0.24, "sine", 0.8]],
+    tracker: [[783.99, 0, 0.18, "sine", 0.7]],
+    undo: [[587.33, 0, 0.12, "sine", 0.5], [440, 0.06, 0.16, "sine", 0.45]],
+    todoDone: [[880, 0, 0.14, "triangle", 0.55]],
+    todoAdd: [[600, 0, 0.08, "sine", 0.45, 760]],
+    paid: [[523.25, 0, 0.18, "sine", 0.8], [783.99, 0.08, 0.26, "sine", 0.7]],
+    due: [[523.25, 0, 0.3, "sine", 0.6], [659.25, 0.14, 0.3, "sine", 0.6], [783.99, 0.28, 0.45, "sine", 0.6]],
+    perfect: [[523.25, 0, 0.3, "sine", 0.8], [659.25, 0.09, 0.3, "sine", 0.8], [783.99, 0.18, 0.32, "sine", 0.8], [1046.5, 0.27, 0.5, "sine", 0.85]],
+    goal: [[587.33, 0, 0.3, "sine", 0.8], [739.99, 0.09, 0.3, "sine", 0.8], [880, 0.18, 0.35, "sine", 0.8], [1174.66, 0.27, 0.55, "sine", 0.8], [2349.32, 0.3, 0.45, "sine", 0.18]]
+  };
+  function soundCtx() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { audioCtx = new AC(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === "suspended") { try { audioCtx.resume(); } catch (e) {} }
+    return audioCtx;
+  }
+  function playSound(name) {
+    if (!SOUNDS[name] || !setting("sound", true)) return;
+    if ((name === "tap" || name === "pick" || name === "drop") && !setting("soundTaps", true)) return;
+    if (name !== "tap") { clearTimeout(tapTimer); soundAt = Date.now(); } // one sound per click
+    var ctx = soundCtx();
+    if (!ctx) return;
+    try {
+      var vol = 0.08 * (SOUND_VOL[setting("soundVolume", "medium")] || 1), t0 = ctx.currentTime + 0.01;
+      SOUNDS[name].forEach(function (n) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + n[1];
+        o.type = n[3];
+        o.frequency.setValueAtTime(n[0], t);
+        if (n[5]) o.frequency.exponentialRampToValueAtTime(n[5], t + n[2]);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol * n[4], t + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + n[2]);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t); o.stop(t + n[2] + 0.02);
+      });
+    } catch (e) {}
+  }
+
+  function countDone(c) {
+    var n = 0;
+    for (var k in c || {}) if (c[k] !== undefined && c[k] !== null && c[k] !== false) n++;
+    return n;
+  }
+  function soundSnap() {
+    var s = { h: {}, t: {}, d: {}, p: {}, perfect: false }, today = todayKey();
+    state.habits.forEach(function (h) {
+      s.h[h.id] = { n: countDone(h.completions), today: isDone(h, today), goal: solidProgress(h) >= solidTarget(h) };
+      (Array.isArray(h.subTrackers) ? h.subTrackers : []).forEach(function (t) { s.t[t.id] = countDone(t.completions); });
+    });
+    state.todos.forEach(function (t) { s.d[t.id] = !!t.done; });
+    state.payments.forEach(function (p) { s.p[p.id] = countDone(p.paid); });
+    var r = dayCompletionRatio(today);
+    s.perfect = r.of > 0 && r.done === r.of;
+    return s;
+  }
+  // only things on both sides count, so adding, deleting or importing a habit makes no sound
+  function soundCheck() {
+    if (!soundPrev) return;
+    var a = soundPrev, b = soundSnap(), up = {}, down = false, todayFlip = false;
+    soundPrev = b;
+    Object.keys(b.h).forEach(function (id) {
+      var x = a.h[id], y = b.h[id];
+      if (!x) return;
+      if (y.n > x.n) up.complete = true;
+      if (y.n < x.n) down = true;
+      if (y.today && !x.today) todayFlip = true;
+      if (y.goal && !x.goal && y.n > x.n) up.goal = true;
+    });
+    Object.keys(b.t).forEach(function (id) {
+      if (!(id in a.t)) return;
+      if (b.t[id] > a.t[id]) up.tracker = true;
+      if (b.t[id] < a.t[id]) down = true;
+    });
+    Object.keys(b.d).forEach(function (id) {
+      if (!(id in a.d)) { up.todoAdd = true; return; }
+      if (b.d[id] && !a.d[id]) up.todoDone = true;
+      if (!b.d[id] && a.d[id]) down = true;
+    });
+    Object.keys(b.p).forEach(function (id) {
+      if (!(id in a.p)) return;
+      if (b.p[id] > a.p[id]) up.paid = true;
+      if (b.p[id] < a.p[id]) down = true;
+    });
+    if (b.perfect && !a.perfect && todayFlip) up.perfect = true;
+    // a tracker also ticks its habit: that's "tracker", unless it just finished the habit for today
+    var name = up.perfect ? "perfect" : up.goal ? "goal"
+      : up.tracker ? (todayFlip ? "complete" : "tracker") : up.complete ? "complete"
+      : up.paid ? "paid" : up.todoDone ? "todoDone" : up.todoAdd ? "todoAdd" : down ? "undo" : null;
+    if (name) playSound(name);
+  }
+
+  // a reminder due today chimes once a day (browsers keep audio off until the first tap, so it waits for that)
+  function soundDueCheck() {
+    if (!setting("sound", true)) return;
+    var today = todayKey();
+    if (setting("soundDueDay", "") === today) return;
+    var due = state.payments.some(function (p) { return paymentDueOn(p, today) && !(p.paid && p.paid[today.slice(0, 7)]); });
+    if (!due) return;
+    var ctx = soundCtx();
+    if (!ctx || ctx.state !== "running") return;
+    setSetting("soundDueDay", today);
+    playSound("due");
+  }
+  document.addEventListener("pointerdown", function () {
+    if (!setting("sound", true)) return;
+    var ctx = soundCtx();
+    if (ctx && ctx.state !== "running" && ctx.resume) ctx.resume().then(soundDueCheck, function () {});
+  }, true);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) soundDueCheck(); });
+  setInterval(soundDueCheck, 60000);
+
+  // a soft click for buttons and tabs; skipped when the same click already made a sound (completing, ticking…)
+  document.addEventListener("click", function (e) {
+    var el = e.target && e.target.closest && e.target.closest("button, .habit-item, .bnav-btn, .layout-option");
+    if (!el || el.disabled) return;
+    var at = Date.now();
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () { if (soundAt < at) playSound("tap"); }, 0);
+  }, true);
+  // plain browsers drag natively; inside the app hbPointerDrag() makes these sounds
+  if (!HB) {
+    document.addEventListener("dragstart", function (e) { if (e.isTrusted) playSound("pick"); }, true);
+    document.addEventListener("drop", function (e) { if (e.isTrusted) playSound("drop"); }, true);
+  }
+
   // ---------------- first run seed ----------------
   // (a phone running the app starts empty: pairing brings the PC's habits over and keeps the phone's)
   // only once per device: someone who removed every habit shouldn't get the examples back
@@ -7984,6 +8149,7 @@
   })();
 
   render();
+  soundPrev = soundSnap();
   if (HB) { hbStartEvents(); hbPointerDrag(); }
   // the tour opens by itself only on a fresh start; after that it's under Help
   if (firstRun && !setting("tutorialSeen", false)) setTimeout(function () { startTour(); }, 700);

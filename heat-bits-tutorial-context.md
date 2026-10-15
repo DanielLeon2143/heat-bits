@@ -170,6 +170,8 @@ Combined heat map, stats bar, color swatch `#allColorToggle`, **Today** and **To
     when paired, **Sync now** `#syncNowBtn` and **Unpair** `#syncUnpairBtn`.
 - **Appearance**: theme color presets (incl. Custom), Light/Dark/Auto, app color, All Habits heat map color,
   **Font size** `[data-fs-opt]`, font (incl. installed fonts `#localFontInput`), Reset `#settingsResetBtn`.
+- **Sound** `#soundCard`: **Sounds** on/off `#setSound` (on by default), Volume Low / Medium / High
+  `[data-sound-vol]`, **Taps and drags** `#setSoundTaps`. Per device, never synced.
 - **Layout**:
   - Sidebar always shown or auto-hide: `[data-sidebar-opt]`.
   - **Always open on** `#setStartPage`.

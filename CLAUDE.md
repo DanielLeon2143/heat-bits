@@ -68,6 +68,15 @@ immediately from `.drag-handle`, and after a 350 ms hold anywhere else.
 The habit/activity blocks in the hour grid still move with their own `mousedown` code, so mouse only.
 While dragging near the top or bottom of the screen, the page itself scrolls (phones: task list → week grid).
 
+### Sounds
+Section `sounds` in index.html: soft tones made with Web Audio (no sound files), switched in Settings → Sound
+(`sound`, `soundVolume`, `soundTaps`, per device). Data sounds (complete, tracker, goal, perfect day, to-do, paid, undo)
+are found in `saveState()` by `soundCheck()`, which compares a snapshot (`soundSnap()`) before and after. So a new
+place that ticks something needs no extra call, as long as it calls `saveState()`. `hbApplyRemote` refreshes the snapshot
+silently, so synced changes make no sound. Never play sounds from `render*`. Taps come from one capture-phase click
+listener and are skipped when the same click already made a sound; drags play `pick`/`drop` in `hbPointerDrag()`
+and `gridPointerDrag()`. A reminder due today chimes once a day (`soundDueDay`), after the first tap.
+
 ### Guided tour
 `startTour()` in index.html (section `guided tour`) highlights one element per step and explains it in a card.
 `tourSteps()` builds the steps for the layout (PC, collapsed sidebar, phone, unpaired phone).
