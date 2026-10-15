@@ -7657,9 +7657,14 @@
     });
     steps.push({
       page: THISWEEK, target: "#weekWrap", title: "Your week",
+      text: "Plan your week hour by hour. Habits with a set time show up on every day they repeat, next to your activities, reminders and to-dos. " +
+        tap + " an empty slot, or <b>+</b> above the grid, to add one. <b>‹ ›</b> change the week and <b>Today</b> jumps back."
+    });
+    steps.push({
+      page: THISWEEK, target: "#weekWrap", title: "Moving things around",
       text: phone
-        ? "Everything with a time shows up here, hour by hour. Hold a box for half a second, then drag it to move it. Drag the bar at its bottom to change how long it takes. Tap a box twice to edit it."
-        : "Everything with a time shows up here, hour by hour. Click an empty slot to add something. Drag a box to move it, and drag its bottom edge to change how long it takes. Double-click a box to edit it."
+        ? "Hold a box for half a second, then drag it to another time or day. Drag the bar at its bottom to change how long it takes. Tap a box twice to edit it. Hold it and let go without moving to show its delete button."
+        : "Drag a box to another time or day, and drag its bottom edge to change how long it takes. Double-click a box to edit it."
     });
     steps.push({
       page: THISWEEK, target: "#heatmapWrap", title: "Your year",
@@ -7670,6 +7675,12 @@
       page: THISWEEK, target: "#allHabitRows", title: "Today",
       text: "Today's habits. " + tap + " <b>Complete</b> when you've done one: it leaves the list and today's square fills in. The bar shows how close you are to your initial goal."
     });
+    steps.push({
+      page: THISWEEK, target: "#weekTrackersPanel", title: "Trackers",
+      text: "Trackers log something more specific within a habit. A gym habit could track each muscle group, a reading habit the pages you read. " +
+        "Pick a habit here and check off its trackers for today. " +
+        (phone ? "Add trackers from the habit's own page (<b>Habits</b> → the habit)." : "You add them on the habit's own page.")
+    });
     if (phone) {
       steps.push({
         target: "#bottomNav", title: "Getting around",
@@ -7679,6 +7690,11 @@
       if (habit) steps.push({
         page: habit.id, target: "#dayToggleRow", title: "A habit's own page",
         text: "Each habit has its own page with streaks and its own heat map. Pick the days it repeats here: other days never break your streak. Your first target is 14 days in a row, and the pencil changes it."
+      });
+      if (habit) steps.push({
+        page: habit.id, target: ".subtracker-section", title: "Add trackers",
+        text: "Down here, <b>+ Add tracker</b> splits a habit into the parts you want to follow, each with its own small heat map. " +
+          "Pick <b>Yes / No</b> (did I train legs?) or <b>Measurable</b> (how many sets?). <b>Graphs</b> compares them over time."
       });
       steps.push({
         target: collapsed ? ".add-habit-item" : ".new-habit", title: "Add your own habit",
@@ -7821,10 +7837,17 @@
     var now = Date.now();
     var walk = { id: uid(), name: "Morning walk", type: "boolean", unit: "", color: PALETTE[0], createdAt: now - 45 * DAY_MS, completions: {}, demo: true };
     var water = { id: uid(), name: "Water", type: "measurable", unit: "glasses", color: PALETTE[2], createdAt: now - 45 * DAY_MS, completions: {}, demo: true };
+    var stretch = { id: uid(), name: "Stretch after", type: "boolean", unit: "", days: [0, 1, 2, 3, 4, 5, 6], completions: {} };
+    var km = { id: uid(), name: "Distance", type: "measurable", unit: "km", days: [0, 1, 2, 3, 4, 5, 6], completions: {} };
+    walk.subTrackers = [km, stretch];
     for (var i = 0; i < 45; i++) {
-      var d = new Date(now - i * DAY_MS);
-      if (Math.random() < 0.62) walk.completions[dateKey(d)] = true;
-      if (Math.random() < 0.7) water.completions[dateKey(d)] = Math.round(3 + Math.random() * 6);
+      var d = new Date(now - i * DAY_MS), k = dateKey(d);
+      if (Math.random() < 0.62) {
+        walk.completions[k] = true;
+        km.completions[k] = Math.round(15 + Math.random() * 30) / 10;
+        if (Math.random() < 0.5) stretch.completions[k] = true;
+      }
+      if (Math.random() < 0.7) water.completions[k] = Math.round(3 + Math.random() * 6);
     }
     state.habits.push(walk, water);
     state.selectedId = ALL;

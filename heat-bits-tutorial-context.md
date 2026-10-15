@@ -45,7 +45,9 @@ The Windows and Android apps sync over the home Wi-Fi.
 ## 3. First run: what a new user actually sees
 
 - **Web / Windows (first launch):** two **demo habits** are created with ~45 days of random history:
-  "Morning walk" (Yes/No, orange) and "Water" (Measurable, glasses, blue). They carry `demo: true`, and the
+  "Morning walk" (Yes/No, orange) and "Water" (Measurable, glasses, blue). Morning walk has two example
+  trackers, "Distance" (Measurable, km) and "Stretch after" (Yes/No), so the Trackers panel and the habit page
+  show what trackers are for. The habits carry `demo: true`, and the
   device remembers it added them (`state.settings.demoAdded`), so removing every habit doesn't bring them back.
   The app opens on **This Week** (configurable later in Settings → Always open on).
   - The tour's last step offers **Remove the example habits** (removes every habit with `demo: true`). A single
@@ -228,31 +230,42 @@ Targets are looked up again every 150 ms, so re-renders and sync updates don't l
 target is missing, the card shows centered with the page dimmed. When the tour ends, the app goes back to the page
 the user was on. The steps come from `tourSteps()`, which builds them for the current layout.
 
-### PC / web, wide window (10 steps; 9 if there are no habits)
+### PC / web, wide window (13 steps; 11 if there are no habits)
 1. **Welcome to Heat-Bits** (no target). Mentions the two example habits when they're there.
-2. **Your week** `#weekWrap` (This Week): click an empty slot to add; drag to move; drag the bottom edge to change
-   the length; double-click to edit.
-3. **Your year** `#heatmapWrap`: darker squares, the perfect-day outline, click a past day to check things off.
-4. **Today** `#allHabitRows`: **Complete**, the initial-goal bar.
-5. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days, and the 14-day initial goal with its pencil.
-6. **Add your own habit** `.new-habit` (collapsed: `.add-habit-item`): **Yes / No** or **Measurable**.
-7. **Calendar** `#calGrid` (or `#weekWrap` if it's in week view): Month at a glance, **Week** to plan by the hour.
-8. **Graphs** first `.graph-card`.
-9. **Settings**: Windows app → `#syncCard` (pairing + the app download code); browser → the Theme colors row.
-10. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
+2. **Your week** `#weekWrap` (This Week): what the week calendar is for. Habits with a set time show up on every
+   day they repeat, next to activities, reminders and to-dos. Click an empty slot or **+** to add; **‹ ›** change
+   the week, **Today** jumps back.
+3. **Moving things around** `#weekWrap`: drag to move to another time or day; drag the bottom edge to change the
+   length; double-click to edit.
+4. **Your year** `#heatmapWrap`: darker squares, the perfect-day outline, click a past day to check things off.
+5. **Today** `#allHabitRows`: **Complete**, the initial-goal bar.
+6. **Trackers** `#weekTrackersPanel`: trackers log something more specific within a habit (each muscle group in a
+   gym habit, pages in a reading habit). Pick a habit and check off its trackers for today; they're added on the
+   habit's own page.
+7. **A habit's own page** `#dayToggleRow` (first habit's page): repeat days, and the 14-day initial goal with its pencil.
+8. **Add trackers** `.subtracker-section` (same page): **+ Add tracker**, Yes / No or Measurable, each with its own
+   small heat map; Graphs compares them.
+9. **Add your own habit** `.new-habit` (collapsed: `.add-habit-item`): **Yes / No** or **Measurable**.
+10. **Calendar** `#calGrid` (or `#weekWrap` if it's in week view): Month at a glance, **Week** to plan by the hour.
+11. **Graphs** first `.graph-card`.
+12. **Settings**: Windows app → `#syncCard` (pairing + the app download code); browser → the Theme colors row.
+13. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
 
-### Phone layout (≤ 700 px; 6 steps, 7 on an unpaired Android phone)
+### Phone layout (≤ 700 px; 8 steps, 9 on an unpaired Android phone)
 1. **Welcome**. On an unpaired phone it says the phone syncs with Heat-Bits on the PC over Wi-Fi.
 2. *(unpaired Android only)* **Connect to your PC** `#syncCard` (Settings): open Settings → Devices & sync on the
    PC, then **Scan QR code** here, same Wi-Fi.
-3. **Your week** `#weekWrap`: hold half a second then drag; the bar at the bottom changes the length; tap twice to edit.
-4. **Your year** `#heatmapWrap`.
-5. **Today** `#allHabitRows`.
-6. **Getting around** `#bottomNav`: the tabs; **Habits** opens your habits and **New habit**.
-7. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
+3. **Your week** `#weekWrap`: what the week calendar is for; tap an empty slot or **+** to add; **‹ ›** and **Today**.
+4. **Moving things around** `#weekWrap`: hold half a second then drag; the bar at the bottom changes the length;
+   tap twice to edit; hold and let go without moving to show the delete button.
+5. **Your year** `#heatmapWrap`.
+6. **Today** `#allHabitRows`.
+7. **Trackers** `#weekTrackersPanel`: what trackers are for; add them from the habit's page (Habits → the habit).
+8. **Getting around** `#bottomNav`: the tabs; **Habits** opens your habits and **New habit**.
+9. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
 
-Possible next additions, shown once the first time a feature is used: trackers (first visit to a habit page), the
-Just this day / Weekly pattern / All days question (first move on the calendar), and Graphs' **?** button.
+Possible next additions, shown once the first time a feature is used: the Just this day / Weekly pattern / All days
+question (first move on the calendar), and Graphs' **?** button.
 
 ## 9. Tone and copy guidelines
 
