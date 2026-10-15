@@ -127,6 +127,8 @@ because those get recreated on every CI run.
 - Flutter 3.47.7 at `C:\src\flutter`, portable JDK 17 at `C:\src\jdk17` (set with `flutter config --jdk-dir`;
   the system `java` is 8, which is too old), Android SDK at `%LOCALAPPDATA%\Android\Sdk` (command-line
   tools only, no Android Studio), `nuget.exe` at `C:\src\nuget`, VS Build Tools 2026.
+- A fresh `build/` folder needs `C:\src\nuget` on PATH: the WebView plugin downloads its NuGet packages, and without
+  it CMake caches `NUGET-NOTFOUND` and keeps failing until `build/windows` is deleted.
 - `adb` is at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` and isn't on PATH.
 
 ### Why some versions are pinned
