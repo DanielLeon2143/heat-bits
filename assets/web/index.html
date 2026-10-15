@@ -942,6 +942,12 @@
   .settings-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 14px 0; border-top: 1px solid var(--border); }
   .settings-row:first-of-type { border-top: none; }
   .settings-row.stacked { flex-direction: column; gap: 12px; }
+  /* Sound → Pitch: the three steps, with a slider under them for anything in between */
+  .pitch-ctl { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .pitch-slider { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 220px; }
+  .pitch-slider input { flex: 1; min-width: 0; accent-color: var(--accent); margin: 0; }
+  .pitch-value { min-width: 44px; text-align: right; font-size: calc(12.5px * var(--fs, 1)); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  @media (max-width: 820px) { .pitch-ctl { align-items: stretch; } }
   .settings-row.stacked .settings-label { flex: none; }
   .settings-label { font-size: calc(14px * var(--fs, 1)); font-weight: 600; flex: 0 1 260px; }
   .settings-label span { display: block; font-size: calc(12px * var(--fs, 1)); font-weight: 400; color: var(--ink-soft); margin-top: 3px; line-height: 1.4; }
@@ -4094,11 +4100,15 @@
               return '<button class="view-toggle-btn' + (setting("soundVolume", "medium") === o[0] ? " active" : "") + '" data-sound-vol="' + o[0] + '">' + o[1] + '</button>';
             }).join("") +
           '</div></div>' +
-        '<div class="settings-row"><div class="settings-label">Pitch<span>Lower or higher sounds.</span></div>' +
-          '<div class="cal-view-toggle">' +
-            [["lower", "Lower"], ["normal", "Normal"], ["higher", "Higher"]].map(function (o) {
-              return '<button class="view-toggle-btn' + (setting("soundPitch", "normal") === o[0] ? " active" : "") + '" data-sound-pitch="' + o[0] + '">' + o[1] + '</button>';
-            }).join("") +
+        '<div class="settings-row"><div class="settings-label">Pitch<span>Lower or higher sounds. Pick a step, or slide for anything in between.</span></div>' +
+          '<div class="pitch-ctl">' +
+            '<div class="cal-view-toggle">' +
+              [["lower", "Lower"], ["normal", "Normal"], ["higher", "Higher"]].map(function (o) {
+                return '<button class="view-toggle-btn' + (Math.abs(soundPitch() - SOUND_PITCH[o[0]]) < 0.005 ? " active" : "") + '" data-sound-pitch="' + o[0] + '">' + o[1] + '</button>';
+              }).join("") +
+            '</div>' +
+            '<div class="pitch-slider"><input type="range" id="soundPitchRange" min="0.5" max="2" step="0.01" value="' + soundPitch() + '" aria-label="Pitch">' +
+              '<span class="pitch-value" id="soundPitchValue">' + Math.round(soundPitch() * 100) + '%</span></div>' +
           '</div></div>' +
         toggleRow("setSoundTaps", "Taps and drags", "Soft clicks for buttons, and when you pick up and drop things.", !!setting("soundTaps", true)) +
       '</div>' +
@@ -4210,12 +4220,26 @@
         playSound("complete"); // a sample at the new volume
       });
     });
+    var pitchRange = document.getElementById("soundPitchRange");
+    function showPitch(v) {
+      pitchRange.value = v;
+      document.getElementById("soundPitchValue").textContent = Math.round(v * 100) + "%";
+      main.querySelectorAll("[data-sound-pitch]").forEach(function (x) {
+        x.classList.toggle("active", Math.abs(v - SOUND_PITCH[x.getAttribute("data-sound-pitch")]) < 0.005);
+      });
+    }
     main.querySelectorAll("[data-sound-pitch]").forEach(function (b) {
       b.addEventListener("click", function () {
-        setSetting("soundPitch", b.getAttribute("data-sound-pitch"));
-        main.querySelectorAll("[data-sound-pitch]").forEach(function (x) { x.classList.toggle("active", x === b); });
+        var v = SOUND_PITCH[b.getAttribute("data-sound-pitch")];
+        setSetting("soundPitchValue", v);
+        showPitch(v);
         playSound("complete"); // a sample at the new pitch
       });
+    });
+    pitchRange.addEventListener("input", function () { showPitch(parseFloat(pitchRange.value)); });
+    pitchRange.addEventListener("change", function () {
+      setSetting("soundPitchValue", parseFloat(pitchRange.value));
+      playSound("complete");
     });
     document.getElementById("setHideTitles").addEventListener("change", function () { setSetting("hidePageTitles", this.checked); rerender(); });
     document.getElementById("setHideTodoDates").addEventListener("change", function () { setSetting("hideTodoDates", this.checked); applySettings(); });
@@ -7994,6 +8018,11 @@
   var audioCtx = null, soundPrev = null, soundAt = 0, tapTimer = null;
   var SOUND_VOL = { low: 0.5, medium: 1, high: 1.6 };
   var SOUND_PITCH = { lower: 0.75, normal: 1, higher: 1.33 }; // about a fourth down / up
+  // the slider can set anything from half to double; the steps are shortcuts to three of those
+  function soundPitch() {
+    var v = parseFloat(setting("soundPitchValue", ""));
+    return v >= 0.5 && v <= 2 ? v : SOUND_PITCH[setting("soundPitch", "normal")] || 1; // soundPitch: the steps-only version
+  }
   // each note: [frequency Hz, start s, length s, wave, loudness, glide to Hz]
   var SOUNDS = {
     tap: [[1400, 0, 0.03, "triangle", 0.25]],
@@ -8026,7 +8055,7 @@
     if (!ctx) return;
     try {
       var vol = 0.08 * (SOUND_VOL[setting("soundVolume", "medium")] || 1), t0 = ctx.currentTime + 0.01;
-      var pitch = SOUND_PITCH[setting("soundPitch", "normal")] || 1;
+      var pitch = soundPitch();
       SOUNDS[name].forEach(function (n) {
         var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + n[1];
         o.type = n[3];
