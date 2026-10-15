@@ -157,7 +157,7 @@
   }
   .add-habit-item:hover .add-habit-plus { border-color: var(--accent); color: var(--accent); border-style: solid; }
   /* Help: a button under the New habit box, or a ? under the + when the sidebar is collapsed */
-  .help-link { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 10px; padding: 7px 10px; font-size: calc(12.5px * var(--fs, 1)); }
+  .help-link { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 8px; padding: 7px 10px; font-size: calc(12.5px * var(--fs, 1)); }
   .help-q {
     width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; box-sizing: border-box;
     display: inline-flex; align-items: center; justify-content: center; font-size: calc(10.5px * var(--fs, 1)); font-weight: 700; line-height: 1;
@@ -166,6 +166,8 @@
   .habit-item.help-item { display: none; color: var(--ink-soft); }
   .app.collapsed .habit-item.help-item { display: flex; padding: 4px 0; }
   .help-item .help-q { width: 18px; height: 18px; }
+  .help-q { opacity: 0.45; transition: opacity 0.15s; }
+  .help-link:hover .help-q, .help-item:hover .help-q { opacity: 1; }
   .help-item:hover { color: var(--accent); }
 
   /* guided tour: a highlight around one thing at a time, and a card explaining it */
@@ -286,7 +288,8 @@
     padding-top: 12px; border-top: 1px solid var(--border);
     display: flex; flex-direction: column; gap: 8px;
   }
-  .export-link { width: 100%; padding: 6px 10px; font-size: calc(12.5px * var(--fs, 1)); }
+  .export-link { width: 100%; margin-top: 10px; padding: 7px 10px; font-size: calc(12.5px * var(--fs, 1)); }
+  .app.collapsed .export-link { display: none; }
 
   /* ---------------- main ---------------- */
   .main { flex: 1; min-width: 0; padding: 26px 30px 36px; }
@@ -1473,10 +1476,10 @@
       <input type="text" class="field hidden" id="newHabitUnit" placeholder="Measurement type (e.g. km, pages)" maxlength="20">
       <button class="primary-btn" id="addHabitBtn">Add habit</button>
     </div>
+    <button class="ghost-btn export-link" id="exportOpenBtn" title="Export or import your data">Export / import</button>
     <button class="ghost-btn help-link" id="helpOpenBtn" title="Show the tour again"><span class="help-q">?</span>Help &amp; tour</button>
 
     <div class="sidebar-foot">
-      <button class="ghost-btn export-link" id="exportOpenBtn" title="Export or import your data">Export / import</button>
       <div id="storageNote">Stored only on this device.</div>
     </div>
   </aside>
@@ -7899,6 +7902,10 @@
     steps.push({
       page: SETTINGS, target: "#appearanceCard", title: "Appearance",
       text: "Theme colors, light or dark, the app color, and the font and its size."
+    });
+    steps.push({
+      page: SETTINGS, target: "#soundCard", title: "Sound",
+      text: "Turn sounds on or off, and pick their volume and pitch."
     });
     steps.push({
       page: SETTINGS, target: "#layoutCard", title: "Layout",

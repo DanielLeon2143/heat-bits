@@ -81,9 +81,9 @@ The sidebar (`#sidebar`, list `#habitList`) contains, in order:
 The active item has class `.habit-item.active`. That's the reliable way for tutorial code to know the current page.
 
 Sidebar extras: collapse button `#collapseToggle`; new-habit form (`#newHabitName`, type buttons `#typeBool` /
-`#typeMeas`, unit `#newHabitUnit`, `#addHabitBtn`); **Help & tour** button `#helpOpenBtn` right below the
-new-habit form; footer with `#exportOpenBtn` (Export / import) and `#storageNote` (in the apps it shows sync
-status, e.g. "Syncing with 1 phone").
+`#typeMeas`, unit `#newHabitUnit`, `#addHabitBtn`); right below the new-habit form, **Export / import**
+`#exportOpenBtn` and then **Help & tour** `#helpOpenBtn` (its **?** is faded until hovered); footer with
+`#storageNote` (in the apps it shows sync status, e.g. "Syncing with 1 phone").
 
 ## 5. Screen by screen (what to explain, and where it is)
 
@@ -238,7 +238,7 @@ Every step's text is kept to about two lines of the card. Steps with `calView` s
 Week first; the tour puts the user's own choice back when it ends. The Settings cards have ids for the tour:
 `#appearanceCard`, `#layoutCard`, `#heatmapCard`.
 
-### PC / web, wide window (16 steps in a browser, 17 in the Windows app; 2 fewer with no habits)
+### PC / web, wide window (17 steps in a browser, 18 in the Windows app; 2 fewer with no habits)
 1. **Welcome to Heat-Bits** (no target). Mentions the two example habits when they're there.
 2. **Your week** `#weekWrap` (This Week): plan by the hour; click an empty slot or **+** to add.
 3. **Moving things around** `#weekWrap`: drag to move, drag the bottom edge to resize, double-click to edit.
@@ -253,11 +253,12 @@ Week first; the tour puts the user's own choice back when it ends. The Settings 
 12. **Graphs** first `.graph-card`.
 13. *(Windows app only)* **Your phone** `#syncCard`: pairing, and the code to download the Android app.
 14. **Appearance** `#appearanceCard`: theme colors, light or dark, app color, font and size.
-15. **Layout** `#layoutCard`: the start page, and what to hide (sidebar, page titles).
-16. **Heat map** `#heatmapCard`: calendar year, centered on today, or today on the right.
-17. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
+15. **Sound** `#soundCard`: sounds on or off, volume and pitch.
+16. **Layout** `#layoutCard`: the start page, and what to hide (sidebar, page titles).
+17. **Heat map** `#heatmapCard`: calendar year, centered on today, or today on the right.
+18. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
 
-### Phone layout (≤ 700 px; 14 steps, 15 on an unpaired Android phone)
+### Phone layout (≤ 700 px; 15 steps, 16 on an unpaired Android phone)
 1. **Welcome**. On an unpaired phone it says the phone syncs with the PC.
 2. *(unpaired Android only)* **Connect to your PC** `#syncCard` (Settings): Settings → Devices & sync on the PC,
    then **Scan QR code** here, same Wi-Fi.
@@ -271,9 +272,10 @@ Week first; the tour puts the user's own choice back when it ends. The Settings 
 10. **Calendar: week** `.cal-panel`.
 11. **Graphs**.
 12. **Appearance** `#appearanceCard`.
-13. **Layout** `#layoutCard`.
-14. **Heat map** `#heatmapCard`.
-15. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
+13. **Sound** `#soundCard`.
+14. **Layout** `#layoutCard`.
+15. **Heat map** `#heatmapCard`.
+16. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
 
 Possible next additions, shown once the first time a feature is used: the Just this day / Weekly pattern / All days
 question (first move on the calendar), and Graphs' **?** button.
