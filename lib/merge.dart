@@ -222,7 +222,7 @@ Map<String, dynamic> keepPcText(Map<String, dynamic> merged, Object? base, List<
 // ---------------- settings ----------------
 // Settings sync too (colors, font, sound, layout…) while "Sync settings" is on, on both devices.
 // These stay on each device whatever the switch says.
-const localSettings = {'tutorialSeen', 'demoAdded', 'soundDueDay', 'syncSettings', 'closeToTray', 'globalHotkey'};
+const localSettings = {'tutorialSeen', 'demoAdded', 'soundDueDay', 'syncSettings', 'closeToTray', 'globalHotkey', 'localFonts'};
 
 /// This device's "Sync settings" switch (on unless turned off).
 bool syncsSettings(Map<String, dynamic> state) => asMap(state['settings'])['syncSettings'] != false;

@@ -246,8 +246,38 @@ Combined heat map, stats bar, color swatch `#allColorToggle`, **Today** and **To
   **Links to missing notes** `#ngMissing` (hollow dots; a click makes the note), **Always show names** `#ngLabels`.
 
 ### Settings
-- **Index** `.settings-index`: on the right (on narrow screens and phones, a row of chips at the top), one link per
-  card; click to jump, and the card you're on is highlighted as you scroll.
+Cards in this order (each has `data-keywords` for the search), grouped in the index:
+- **Find a setting** `#settingsSearch` above the cards: hides the cards and rows that don't match (a card whose title
+  or keywords match shows whole; Devices & sync, Data & storage and Alarms are matched as a whole). Esc clears it, and
+  the filter stays while the page redraws. "No setting matches that." `#settingsSearchEmpty`.
+- **Index** `.settings-index`: on the right, in groups **Look**, **Alerts**, **Devices & data**, then Help (on narrow
+  screens and phones a row of chips at the top, without the group names). Click to jump; the card you're on is
+  highlighted as you scroll, and cards hidden by the search are dimmed. On the phone app (`HB.role === "client"`)
+  **Devices & sync** is moved to the top of the page and of the index ("This phone").
+
+**Look**
+- **Appearance** `#appearanceCard`: theme color presets (incl. Custom), Light/Dark/Auto, app color,
+  **Font size** `[data-fs-opt]`, font in two groups, **Web fonts** (Default, Lora, JetBrains Mono; downloaded once) and
+  **On this device** (System plus every installed font typed into `#localFontInput`, remembered per device in
+  `settings.localFonts`, each with a × `[data-forget-font]` to drop it), Reset `#settingsResetBtn`.
+- **Layout** `#layoutCard`: sidebar always shown or auto-hide `[data-sidebar-opt]`; **Sidebar side** `[data-sidebar-side]`
+  (Left/Right, `html.sb-right`; wide windows only; the resize edge, collapse arrow and auto-hide flip too); **Sidebar
+  width** `#setSidebarWidth` (200–420 px, Reset `#sidebarWidthReset`; not on phones; the edge `#sidebarResize` can be
+  dragged, double-click resets); **Always open on** `#setStartPage`; **Hide page titles** `#setHideTitles`.
+- **Calendar & to-dos** `#calendarCard`: **Hide to-do dates and times** `#setHideTodoDates`, **Hide calendar icons**
+  `#setHideKindIcons`, **Patterned calendar boxes** `#setPatternBorders`.
+- **Heat maps & trackers** `#heatmapCard`: layout `[data-layout-opt="year|centered|rolling"]` (Calendar year, Centered on
+  today, Today on the right), **All Habits heat map color** `#hmColor…` (Match app color `#hmMatchBtn`), **Numbers on
+  trackers** `#setTrackerNumbers` with **Tracker number style** `[data-tn-weight]` and **opacity** `#trackerNumberRange`.
+
+**Alerts**
+- **Alarms** `#alarmsCard`: **+ New alarm** `#alarmAddBtn`; each alarm has a time, label, on/off switch, repeat days
+  (none = once), Notification / Alarm and PC and phone / PC only / Phone only. Alarms sync. In the apps, **Test notification**
+  and **Test alarm** `[data-alert-test]` send a sample in 5 seconds. They only ring in the apps, not in a browser.
+- **Sound** `#soundCard`: **Sounds** on/off `#setSound` (on by default), Volume Low / Medium / High
+  `[data-sound-vol]`, Pitch Lower / Normal / Higher `[data-sound-pitch]` plus a slider `#soundPitchRange` (50–200%), **Taps and drags** `#setSoundTaps`. Per device, never synced.
+
+**Devices & data**
 - **Devices & sync** `#syncCard` (apps only):
   - PC: QR code, address and pairing code, New code `#syncNewCode`, a second QR code (**Get the Android app**,
     links to the latest GitHub release's APK), paired phones.
@@ -255,31 +285,16 @@ Combined heat map, stats bar, color swatch `#allColorToggle`, **Today** and **To
     when paired, **Sync now** `#syncNowBtn` and **Unpair** `#syncUnpairBtn`.
   - Both: **Sync settings** `#syncSettingsToggle` (on by default): colors, font, sound, layout and heat map stay the
     same on the PC and the phone. Turning it off on one device keeps that device's own settings.
+- **Behavior** `#desktopCard` (Windows app only, `HB.platform === "windows"`): **Keep running when closed**
+  `#setCloseToTray` (`closeToTray`) and **Quick note from any program** `#setGlobalHotkey` (`globalHotkey`). Both on
+  by default, per device.
 - **Data & storage** `#dataCard` (apps only): the folder the data is kept in, what's in it (heatbits.json with the
   counts of habits, notes, to-dos…, its size and when it was saved; `attachments\` with the pictures).
   PC only: **Open folder** `#dataOpenBtn`, **Change folder…** `#dataChangeBtn` (Windows folder picker; the data is
   copied there, or, if that folder already has Heat-Bits data, the user picks *Use the data there* or *Replace with mine*)
   and **Back to Heat-Bits' own folder** `#dataDefaultBtn`. Phones keep the data in the app's own storage.
-- **Alarms** `#alarmsCard`: **+ New alarm** `#alarmAddBtn`; each alarm has a time, label, on/off switch, repeat days
-  (none = once), Notification / Alarm and PC and phone / PC only / Phone only. Alarms sync. In the apps, **Test notification**
-  and **Test alarm** `[data-alert-test]` send a sample in 5 seconds. They only ring in the apps, not in a browser.
-- **Appearance**: theme color presets (incl. Custom), Light/Dark/Auto, app color, All Habits heat map color,
-  **Font size** `[data-fs-opt]`, font (incl. installed fonts `#localFontInput`), Reset `#settingsResetBtn`.
-- **Sound** `#soundCard`: **Sounds** on/off `#setSound` (on by default), Volume Low / Medium / High
-  `[data-sound-vol]`, Pitch Lower / Normal / Higher `[data-sound-pitch]` plus a slider `#soundPitchRange` (50–200%), **Taps and drags** `#setSoundTaps`. Per device, never synced.
-- **Layout**:
-  - Sidebar always shown or auto-hide: `[data-sidebar-opt]`.
-  - **Sidebar side** `[data-sidebar-side]`: Left or Right (`html.sb-right`; wide windows only). On the right, the resize
-    edge, the collapse arrow and auto-hide flip too.
-  - **Sidebar width** `#setSidebarWidth` (200–420 px, Reset `#sidebarWidthReset`; not on phones). The sidebar's right
-    edge `#sidebarResize` can also be dragged; double-click it to reset.
-  - **Always open on** `#setStartPage`.
-  - Switches: hide page titles, hide to-do dates, hide calendar icons, numbers on trackers, patterned calendar boxes.
-  - PC app only (`HB.platform === "windows"`): **Keep running when closed** `#setCloseToTray` (`closeToTray`) and
-    **Quick note from any program** `#setGlobalHotkey` (`globalHotkey`). Both on by default, per device.
-- **Heat map** layout `[data-layout-opt="year|centered|rolling"]`: Calendar year, Centered on today, or Today on the right.
-- **Help**: **Show the tour** `#settingsTourBtn` (the way into the tour on phones).
-- **Settings file**: export and import settings only (`#settingsExportBtn`, `#settingsImportBtn`).
+- **Settings file** `#settingsFileCard`: export and import settings only (`#settingsExportBtn`, `#settingsImportBtn`).
+- **Help** `#helpCard`: **Show the tour** `#settingsTourBtn` (the way into the tour on phones).
 
 ### Data export / import
 `#exportOpenBtn` opens `#exportModalBackdrop`:
@@ -359,7 +374,7 @@ Week first; the tour puts the user's own choice back when it ends. The Settings 
 15. **Appearance** `#appearanceCard`: theme colors, light or dark, app color, font and size.
 16. **Sound** `#soundCard`: sounds on or off, volume and pitch.
 17. **Layout** `#layoutCard`: the start page, and what to hide (sidebar, page titles).
-18. **Heat map** `#heatmapCard`: calendar year, centered on today, or today on the right.
+18. **Heat maps & trackers** `#heatmapCard`: calendar year, centered on today, or today on the right; how the tracker numbers look.
 19. **That's it** `#helpOpenBtn` (collapsed: `.help-item`): reopen from **Help**. Offers **Remove the example habits**.
 
 ### Phone layout (≤ 700 px; 16 steps, 17 on an unpaired Android phone)
@@ -379,7 +394,7 @@ Week first; the tour puts the user's own choice back when it ends. The Settings 
 13. **Appearance** `#appearanceCard`.
 14. **Sound** `#soundCard`.
 15. **Layout** `#layoutCard`.
-16. **Heat map** `#heatmapCard`.
+16. **Heat maps & trackers** `#heatmapCard`.
 17. **That's it** `#settingsTourBtn` (Settings): reopen from Settings. Offers **Remove the example habits**.
 
 Possible next additions, shown once the first time a feature is used: the Just this day / Weekly pattern / All days

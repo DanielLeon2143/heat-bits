@@ -1245,7 +1245,14 @@
   .settings-cards { min-width: 0; }
   .settings-index { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 2px; padding: 10px 8px;
     border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-  .settings-index-title { font-size: calc(10.5px * var(--fs, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); padding: 2px 8px 6px; }
+  .settings-index-title, .settings-index-group { font-size: calc(10.5px * var(--fs, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); padding: 2px 8px 6px; }
+  .settings-index-group:not(:first-child) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .settings-index-gap { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 4px; }
+  .settings-index a.dim { opacity: 0.35; }
+  .settings-search-row { margin-bottom: 14px; }
+  .settings-search { margin: 0; max-width: 420px; }
+  .settings-search-empty { margin-top: 10px; }
+  .settings-card.search-hide, .settings-row.search-hide { display: none; }
   .settings-index a { display: block; padding: 6px 8px; border-radius: 4px; color: var(--ink-soft); text-decoration: none;
     font-size: calc(13px * var(--fs, 1)); border-left: 2px solid transparent; }
   .settings-index a:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
@@ -1254,7 +1261,8 @@
     .settings-layout { grid-template-columns: minmax(0, 1fr); }
     .settings-index { order: -1; top: 0; z-index: 20; flex-direction: row; overflow-x: auto; gap: 6px; padding: 8px; scrollbar-width: none; }
     .settings-index::-webkit-scrollbar { display: none; }
-    .settings-index-title { display: none; }
+    .settings-index-title, .settings-index-group, .settings-index-gap { display: none; }
+    .settings-search { max-width: none; }
     .settings-index a { flex: none; white-space: nowrap; border-left: none; border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
     .settings-index a.active { border-color: var(--accent); }
   }
@@ -1338,6 +1346,12 @@
   .custom-theme-field { display: flex; align-items: center; gap: 6px; font-size: calc(12.5px * var(--fs, 1)); color: var(--ink-soft); cursor: pointer; }
   .custom-theme-field input { width: 30px; height: 26px; padding: 0; border: 1px solid var(--border-strong); border-radius: 3px; background: none; }
   .local-font-row { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+  .font-group-label { font-size: calc(11px * var(--fs, 1)); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); margin: 4px 0 -2px; }
+  .font-option.local { position: relative; cursor: pointer; }
+  .font-forget { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: none;
+    color: var(--ink-soft); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; opacity: 0; }
+  .font-option.local:hover .font-forget, .font-option.local:focus-within .font-forget, .app.phone .font-forget { opacity: 0.8; }
+  .font-forget:hover { color: var(--danger); opacity: 1; }
   .local-font-row .field { flex: 1 1 200px; margin: 0; }
   .local-font-row button { padding: 6px 12px; font-size: calc(12.5px * var(--fs, 1)); }
   .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2423,7 +2437,7 @@
   var HB = window.__HB_HOST__ || null;
   var HB_SYNC_KEYS = ["habits", "todos", "activities", "payments", "alarms", "notes", "noteFolders", "files"];
   // with "Sync settings" on, settings sync too, except these (same list as localSettings in merge.dart)
-  var HB_LOCAL_SETTINGS = ["tutorialSeen", "demoAdded", "soundDueDay", "syncSettings", "closeToTray", "globalHotkey"];
+  var HB_LOCAL_SETTINGS = ["tutorialSeen", "demoAdded", "soundDueDay", "syncSettings", "closeToTray", "globalHotkey", "localFonts"];
   var hbRev = HB ? (HB.rev || 0) : 0;
   var hbSaveTimer = null, hbPendingRemote = null, hbStatus = null, hbReloading = false;
 
@@ -5401,15 +5415,28 @@
   }
 
   // ---------------- Settings ----------------
+  // web fonts (downloaded the first time they're picked) and, last, the system's own; fonts typed in by name are
+  // "local:<name>" and remembered per device in settings.localFonts
   var FONT_OPTIONS = [
     { id: "default", name: "Default", body: "'Libre Franklin', -apple-system, 'Segoe UI', sans-serif", head: "'Space Grotesk', 'Libre Franklin', sans-serif", google: null },
-    { id: "inter",   name: "Inter",   body: "'Inter', -apple-system, 'Segoe UI', sans-serif", google: "Inter:wght@300;400;500;600;700" },
-    { id: "dmsans",  name: "DM Sans", body: "'DM Sans', -apple-system, 'Segoe UI', sans-serif", google: "DM+Sans:wght@300;400;500;600;700" },
     { id: "lora",    name: "Lora",    body: "'Lora', Georgia, 'Times New Roman', serif", google: "Lora:wght@400;500;600;700" },
     { id: "mono",    name: "JetBrains Mono", body: "'JetBrains Mono', ui-monospace, Consolas, 'Courier New', monospace", google: "JetBrains+Mono:wght@300;400;500;600;700" },
     { id: "system",  name: "System", body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif", google: null }
   ];
 
+  function fontTileHtml(f) {
+    ensureFontLoaded(f);
+    var cur = fontOption(setting("font", "default")).id;
+    return '<button class="font-option' + (cur === f.id ? " active" : "") + '" data-font-opt="' + f.id + '" style="font-family:' + f.body.replace(/"/g, "&quot;") + '">' +
+      '<span class="font-sample">Aa</span><span class="font-name">' + escapeHtml(f.name) + '</span></button>';
+  }
+  // the installed fonts typed in on this device, newest first (and the one in use, if it isn't listed yet)
+  function rememberedLocalFonts() {
+    var list = setting("localFonts", []), cur = String(setting("font", "default"));
+    list = Array.isArray(list) ? list.filter(function (n) { return typeof n === "string" && n; }) : [];
+    if (cur.indexOf("local:") === 0 && cur.length > 6 && list.indexOf(cur.slice(6)) === -1) list.unshift(cur.slice(6));
+    return list;
+  }
   function fontOption(id) {
     if (typeof id === "string" && id.indexOf("local:") === 0 && id.length > 6) {
       var name = id.slice(6).replace(/["'<>;{}]/g, "");
@@ -5610,8 +5637,12 @@
 
   // Settings: an index of the cards on the right (on phones, a row of chips at the top). Click to jump; the card
   // you're looking at is highlighted as you scroll.
-  var SETTINGS_INDEX = [["syncCard", "Devices & sync"], ["dataCard", "Data & storage"], ["alarmsCard", "Alarms"], ["appearanceCard", "Appearance"], ["soundCard", "Sound"],
-                        ["layoutCard", "Layout"], ["heatmapCard", "Heat map"], ["helpCard", "Help"], ["settingsFileCard", "Settings file"]];
+  var SETTINGS_INDEX = [
+    ["Look", [["appearanceCard", "Appearance"], ["layoutCard", "Layout"], ["calendarCard", "Calendar & to-dos"], ["heatmapCard", "Heat maps & trackers"]]],
+    ["Alerts", [["alarmsCard", "Alarms"], ["soundCard", "Sound"]]],
+    ["Devices & data", [["syncCard", "Devices & sync"], ["desktopCard", "Behavior"], ["dataCard", "Data & storage"], ["settingsFileCard", "Settings file"]]],
+    ["", [["helpCard", "Help"]]]
+  ];
   function buildSettingsIndex(main) {
     var cards = [].slice.call(main.querySelectorAll(".settings-card"));
     if (!cards.length) return;
@@ -5622,11 +5653,21 @@
     cards[0].parentNode.insertBefore(layout, cards[0]);
     layout.appendChild(col); // on the page before the cards move in, so they stay findable by id
     cards.forEach(function (c) { col.appendChild(c); });
+    // on the phone, connecting to the PC is what Settings is mostly for: Devices & sync goes first
+    var phoneApp = HB && HB.role === "client", sync = document.getElementById("syncCard");
+    if (phoneApp && sync) col.insertBefore(sync, col.firstChild);
     var nav = document.createElement("nav");
     nav.className = "settings-index";
     nav.setAttribute("aria-label", "Settings sections");
-    nav.innerHTML = '<div class="settings-index-title">On this page</div>' + SETTINGS_INDEX.filter(function (s) { return document.getElementById(s[0]); })
-      .map(function (s) { return '<a href="#" data-goto="' + s[0] + '">' + escapeHtml(s[1]) + '</a>'; }).join("");
+    var groups = !phoneApp ? SETTINGS_INDEX : [["This phone", [["syncCard", "Devices & sync"]]]].concat(SETTINGS_INDEX.map(function (g) {
+      return [g[0], g[1].filter(function (x) { return x[0] !== "syncCard"; })];
+    }));
+    nav.innerHTML = groups.map(function (g) {
+      var links = g[1].filter(function (x) { return document.getElementById(x[0]); });
+      if (!links.length) return "";
+      return (g[0] ? '<div class="settings-index-group">' + escapeHtml(g[0]) + '</div>' : '<div class="settings-index-gap"></div>') +
+        links.map(function (x) { return '<a href="#" data-goto="' + x[0] + '">' + escapeHtml(x[1]) + '</a>'; }).join("");
+    }).join("");
     layout.appendChild(nav);
     nav.addEventListener("click", function (e) {
       var a = e.target.closest("[data-goto]");
@@ -5639,6 +5680,40 @@
       markSettingsIndex(a.getAttribute("data-goto"));
     });
     markSettingsIndex();
+  }
+  // Settings → "Find a setting". Cards whose title or keywords match show whole; otherwise only their matching rows.
+  // The cards filled in later (sync, data, alarms) are matched as a whole, so a status redraw can't undo the filter.
+  var settingsQuery = "";
+  var SETTINGS_LIVE_CARDS = { syncCard: 1, dataCard: 1, alarmsCard: 1 };
+  function applySettingsSearch() {
+    var q = settingsQuery.trim().toLowerCase(), any = false;
+    document.querySelectorAll(".settings-card").forEach(function (card) {
+      var head = card.querySelector(".graph-name"), title = ((head ? head.textContent : "") + " " + (card.getAttribute("data-keywords") || "")).toLowerCase();
+      var rows = SETTINGS_LIVE_CARDS[card.id] ? [] : [].slice.call(card.querySelectorAll(".settings-row"));
+      var whole = !q || title.indexOf(q) !== -1 || (!rows.length && card.textContent.toLowerCase().indexOf(q) !== -1);
+      var hits = 0;
+      rows.forEach(function (r) {
+        var hit = whole || r.textContent.toLowerCase().indexOf(q) !== -1;
+        r.classList.toggle("search-hide", !hit);
+        if (hit) hits++;
+      });
+      var show = whole || hits > 0;
+      card.classList.toggle("search-hide", !show);
+      card.classList.toggle("search-part", show && !whole);
+      if (show) any = true;
+      var link = document.querySelector('.settings-index [data-goto="' + card.id + '"]');
+      if (link) link.classList.toggle("dim", !show);
+    });
+    var empty = document.getElementById("settingsSearchEmpty");
+    if (empty) empty.classList.toggle("hidden", any);
+  }
+  function wireSettingsSearch(main) {
+    var box = document.getElementById("settingsSearch");
+    if (!box) return;
+    box.value = settingsQuery;
+    box.addEventListener("input", function () { settingsQuery = box.value; applySettingsSearch(); });
+    box.addEventListener("keydown", function (e) { if (e.key === "Escape" && box.value) { e.preventDefault(); box.value = settingsQuery = ""; applySettingsSearch(); } });
+    applySettingsSearch();
   }
   function markSettingsIndex(force) {
     var nav = document.querySelector(".settings-index");
@@ -5681,11 +5756,11 @@
     var accent = state.allColor;
     document.documentElement.style.setProperty("--accent", accent);
     var theme = setting("theme", "auto"), fontSetting = setting("font", "default"), hm = heatmapMode();
-    var fontId = fontOption(fontSetting).id;
     var preset = setting("themePreset", "default");
     var hmc = setting("heatmapColor", null);
     var ct = customTheme();
     var localName = String(fontSetting).indexOf("local:") === 0 ? fontSetting.slice(6) : "";
+    var localFonts = rememberedLocalFonts();
 
     function previewHtml(mode) {
       var todayCol = mode === "centered" ? 7 : (mode === "rolling" ? 14 : 10), out = "";
@@ -5705,12 +5780,10 @@
         '<div class="habit-title-row"><h2>Settings</h2></div>' +
         '<div class="habit-sub">Changes apply right away and are saved on this device.</div>' +
       '</div></div>' +
-      (HB ? '<div class="graph-card settings-card" id="syncCard"></div>' : '') +
-      (HB ? '<div class="graph-card settings-card" id="dataCard"></div>' : '') +
-      '<div class="graph-card settings-card" id="alarmsCard"></div>' +
-
+      '<div class="settings-search-row"><input type="search" class="field settings-search" id="settingsSearch" placeholder="Find a setting" aria-label="Find a setting">' +
+        '<div class="settings-note settings-search-empty hidden" id="settingsSearchEmpty">No setting matches that.</div></div>' +
       // ---- Appearance ----
-      '<div class="graph-card settings-card" id="appearanceCard">' +
+      '<div class="graph-card settings-card" id="appearanceCard" data-keywords="theme colour color dark light mode font text size typeface reset">' +
         '<div class="graph-head"><span class="graph-name">Appearance</span>' +
           '<div class="graph-stats"><button class="ghost-btn" id="settingsResetBtn">Reset appearance</button></div></div>' +
 
@@ -5745,12 +5818,6 @@
         '<div class="settings-row"><div class="settings-label">App color<span>Buttons, highlights and pages outside a habit\'s own page.</span></div>' +
           '<div class="settings-color">' + colorPickerHtml("appColor", accent) + '</div></div>' +
 
-        '<div class="settings-row"><div class="settings-label">All Habits heat map color<span>Used by the heat map on All Habits and This Week. Matches the app color unless you pick one.</span></div>' +
-          '<div class="settings-color">' + colorPickerHtml("hmColor", hmColor()) +
-            '<button class="ghost-btn match-btn' + (hmc ? "" : " hidden") + '" id="hmMatchBtn">Match app color</button>' +
-            (hmc ? '' : '<div class="settings-note">Matching the app color.</div>') +
-          '</div></div>' +
-
         '<div class="settings-row"><div class="settings-label">Font size<span>Makes the text across the app smaller or larger.</span></div>' +
           '<div class="cal-view-toggle">' +
             [[0.9, "Small"], [1, "Default"], [1.1, "Large"], [1.2, "Larger"], [1.3, "Largest"]].map(function (o) {
@@ -5758,19 +5825,22 @@
             }).join("") +
           '</div></div>' +
 
-        '<div class="settings-row stacked"><div class="settings-label">Font<span>The web fonts load when you pick one (needs a connection the first time).</span></div>' +
+        '<div class="settings-row stacked"><div class="settings-label">Font<span>Web fonts download the first time you pick one. Fonts on this device work offline; type the name of any installed font to add it.</span></div>' +
+          '<div class="font-group-label">Web fonts</div>' +
           '<div class="font-grid">' +
-            FONT_OPTIONS.map(function (f) {
-              ensureFontLoaded(f);
-              return '<button class="font-option' + (fontId === f.id ? " active" : "") + '" data-font-opt="' + f.id + '" style="font-family:' + f.body.replace(/"/g, "&quot;") + '">' +
-                '<span class="font-sample">Aa</span><span class="font-name">' + escapeHtml(f.name) + '</span></button>';
+            FONT_OPTIONS.filter(function (f) { return f.id !== "system"; }).map(fontTileHtml).join("") +
+          '</div>' +
+          '<div class="font-group-label">On this device</div>' +
+          '<div class="font-grid">' +
+            FONT_OPTIONS.filter(function (f) { return f.id === "system"; }).map(fontTileHtml).join("") +
+            localFonts.map(function (name) {
+              return '<div class="font-option local' + (fontSetting === "local:" + name ? " active" : "") + '" role="button" tabindex="0" data-local-font="' + escapeHtml(name) + '" style="font-family:&quot;' + escapeHtml(name) + '&quot;, system-ui">' +
+                '<span class="font-sample">Aa</span><span class="font-name">' + escapeHtml(name) + '</span>' +
+                '<button type="button" class="font-forget" data-forget-font="' + escapeHtml(name) + '" title="Remove from the list" aria-label="Remove ' + escapeHtml(name) + ' from the list">×</button></div>';
             }).join("") +
-            (localName
-              ? '<button class="font-option active" style="font-family:&quot;' + escapeHtml(localName) + '&quot;, system-ui"><span class="font-sample">Aa</span><span class="font-name">' + escapeHtml(localName) + '</span></button>'
-              : '') +
           '</div>' +
           '<div class="local-font-row">' +
-            '<input type="text" class="field" id="localFontInput" list="localFontList" placeholder="Installed font, e.g. Segoe UI" value="' + escapeHtml(localName) + '">' +
+            '<input type="text" class="field" id="localFontInput" list="localFontList" placeholder="Installed font, e.g. Segoe UI">' +
             '<datalist id="localFontList"></datalist>' +
             '<button class="primary-btn" id="localFontApply">Use font</button>' +
             '<button class="ghost-btn" id="localFontFind">Find installed fonts</button>' +
@@ -5779,8 +5849,74 @@
         '</div>' +
       '</div>' +
 
+      // ---- Layout ----
+      '<div class="graph-card settings-card" id="layoutCard" data-keywords="sidebar side width auto-hide start page open titles">' +
+        '<div class="graph-head"><span class="graph-name">Layout</span></div>' +
+        '<div class="settings-row"><div class="settings-label">Sidebar<span>Auto-hide keeps it out of the way: move the pointer to the ' + sidebarSide() + ' edge to show it.</span></div>' +
+          '<div class="cal-view-toggle">' +
+            [["normal", "Always shown"], ["autohide", "Auto-hide"]].map(function (o) {
+              return '<button class="view-toggle-btn' + (setting("sidebarMode", "normal") === o[0] ? " active" : "") + '" data-sidebar-opt="' + o[0] + '">' + o[1] + '</button>';
+            }).join("") +
+          '</div></div>' +
+        '<div class="settings-row sidebar-only"><div class="settings-label">Sidebar side<span>Show the sidebar on the left or the right of the page.</span></div>' +
+          '<div class="cal-view-toggle">' +
+            [["left", "Left"], ["right", "Right"]].map(function (o) {
+              return '<button class="view-toggle-btn' + (sidebarSide() === o[0] ? " active" : "") + '" data-sidebar-side="' + o[0] + '">' + o[1] + '</button>';
+            }).join("") +
+          '</div></div>' +
+        '<div class="settings-row sidebar-only"><div class="settings-label">Sidebar width<span>How wide the sidebar is. You can also drag its inner edge (double-click the edge to reset).</span></div>' +
+          '<div class="sidebar-width-ctl"><input type="range" id="setSidebarWidth" min="' + SIDEBAR_W.min + '" max="' + SIDEBAR_W.max + '" step="2" value="' + sidebarWidth() + '" aria-label="Sidebar width">' +
+            '<span class="pitch-value" id="sidebarWidthValue">' + sidebarWidth() + ' px</span>' +
+            '<button class="ghost-btn" id="sidebarWidthReset">Reset</button></div></div>' +
+        '<div class="settings-row"><div class="settings-label">Always open on<span>The page Heat-Bits shows when it starts.</span></div>' +
+          '<select class="field start-page-select" id="setStartPage">' + startPageOptionsHtml() + '</select></div>' +
+        toggleRow("setHideTitles", "Hide page titles", "Removes the title and subtitle from This Week, Calendar, All Habits, Graphs and Settings. Habit pages keep theirs.", !!setting("hidePageTitles", false)) +
+      '</div>' +
+
+      // ---- Calendar & to-dos ----
+      '<div class="graph-card settings-card" id="calendarCard" data-keywords="week calendar to-do todo dates times icons borders patterns">' +
+        '<div class="graph-head"><span class="graph-name">Calendar &amp; to-dos</span></div>' +
+        toggleRow("setHideTodoDates", "Hide to-do dates and times", "Hides the date and time fields shown to the right of each to-do.", !!setting("hideTodoDates", false)) +
+        toggleRow("setHideKindIcons", "Hide calendar icons", "Removes the small to-do, activity and reminder icons from the boxes on the week calendar.", !!setting("hideKindIcons", false)) +
+        toggleRow("setPatternBorders", "Patterned calendar boxes", "On the week calendar, to-dos get a squiggly border, activities a square-wave border and reminders a sawtooth border, so they're easy to tell apart.", !!setting("patternBorders", false)) +
+      '</div>' +
+
+      // ---- Heat maps & trackers ----
+      '<div class="graph-card settings-card" id="heatmapCard" data-keywords="heatmap heat map colour color tracker trackers numbers opacity weight bold thin this week">' +
+        '<div class="graph-head"><span class="graph-name">Heat maps &amp; trackers</span></div>' +
+        '<div class="settings-row stacked"><div class="settings-label">Layout<span>Applies to every habit, All Habits, This Week and each tracker\'s mini heat map.</span></div>' +
+          '<div class="layout-grid">' +
+            [["year", "Calendar year", "January to December, with arrows to browse other years."],
+             ["centered", "Centered on today", "A rolling year: about six months back and six months ahead, with today in the middle."],
+             ["rolling", "Today on the right", "The last year, with today as the final day at the right edge. Nothing is shown after today."]].map(function (o) {
+              return '<button class="layout-option' + (hm === o[0] ? " active" : "") + '" data-layout-opt="' + o[0] + '">' +
+                previewHtml(o[0]) + '<strong>' + o[1] + '</strong><span>' + o[2] + '</span></button>';
+            }).join("") +
+          '</div></div>' +
+        '<div class="settings-row"><div class="settings-label">All Habits heat map color<span>Used by the heat map on All Habits and This Week. Matches the app color unless you pick one.</span></div>' +
+          '<div class="settings-color">' + colorPickerHtml("hmColor", hmColor()) +
+            '<button class="ghost-btn match-btn' + (hmc ? "" : " hidden") + '" id="hmMatchBtn">Match app color</button>' +
+            (hmc ? '' : '<div class="settings-note">Matching the app color.</div>') +
+          '</div></div>' +
+        toggleRow("setTrackerNumbers", "Numbers on trackers", "In This Week's Trackers list, each square shows how many days that tracker was done this week.", setting("trackerNumbers", true) !== false) +
+        '<div id="trackerNumberOpts"' + (setting("trackerNumbers", true) !== false ? '' : ' class="hidden"') + '>' +
+          '<div class="settings-row"><div class="settings-label">Tracker number style<span>How thick the numbers are.</span></div>' +
+            '<div class="cal-view-toggle">' +
+              TN_WEIGHTS.map(function (o) {
+                return '<button class="view-toggle-btn' + (setting("trackerNumberWeight", "bold") === o[0] ? " active" : "") + '" data-tn-weight="' + o[0] + '" style="font-weight:' + o[2] + '">' + o[1] + '</button>';
+              }).join("") +
+            '</div></div>' +
+          '<div class="settings-row"><div class="settings-label">Tracker number opacity<span>Lower it so the numbers sit quietly behind the color.</span></div>' +
+            '<div class="pitch-slider"><span class="tn-preview"><span class="wt-square" id="tnPreviewLight">3</span><span class="wt-square" id="tnPreviewDark">5</span></span>' +
+              '<input type="range" id="trackerNumberRange" min="10" max="100" step="5" value="' + Math.min(100, Math.max(10, +setting("trackerNumberOpacity", 45) || 45)) + '" aria-label="Tracker number opacity">' +
+              '<span class="pitch-value" id="trackerNumberValue">' + Math.min(100, Math.max(10, +setting("trackerNumberOpacity", 45) || 45)) + '%</span></div></div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="graph-card settings-card" id="alarmsCard" data-keywords="alarm alarms notification notifications reminder alert test ring"></div>' +
+
       // ---- Sound ----
-      '<div class="graph-card settings-card" id="soundCard">' +
+      '<div class="graph-card settings-card" id="soundCard" data-keywords="sound volume pitch taps clicks audio mute">' +
         '<div class="graph-head"><span class="graph-name">Sound</span></div>' +
         toggleRow("setSound", "Sounds", "Soft sounds when you complete habits, trackers and to-dos, and a chime for a perfect day.", !!setting("sound", true)) +
         '<div class="settings-row"><div class="settings-label">Volume<span>How loud the sounds are.</span></div>' +
@@ -5802,73 +5938,18 @@
         toggleRow("setSoundTaps", "Taps and drags", "Soft clicks for buttons, and when you pick up and drop things.", !!setting("soundTaps", true)) +
       '</div>' +
 
-      // ---- Layout ----
-      '<div class="graph-card settings-card" id="layoutCard">' +
-        '<div class="graph-head"><span class="graph-name">Layout</span></div>' +
-        '<div class="settings-row"><div class="settings-label">Sidebar<span>Auto-hide keeps it out of the way: move the pointer to the ' + sidebarSide() + ' edge to show it.</span></div>' +
-          '<div class="cal-view-toggle">' +
-            [["normal", "Always shown"], ["autohide", "Auto-hide"]].map(function (o) {
-              return '<button class="view-toggle-btn' + (setting("sidebarMode", "normal") === o[0] ? " active" : "") + '" data-sidebar-opt="' + o[0] + '">' + o[1] + '</button>';
-            }).join("") +
-          '</div></div>' +
-        '<div class="settings-row sidebar-only"><div class="settings-label">Sidebar side<span>Show the sidebar on the left or the right of the page.</span></div>' +
-          '<div class="cal-view-toggle">' +
-            [["left", "Left"], ["right", "Right"]].map(function (o) {
-              return '<button class="view-toggle-btn' + (sidebarSide() === o[0] ? " active" : "") + '" data-sidebar-side="' + o[0] + '">' + o[1] + '</button>';
-            }).join("") +
-          '</div></div>' +
-        '<div class="settings-row sidebar-only"><div class="settings-label">Sidebar width<span>How wide the sidebar is. You can also drag its inner edge (double-click the edge to reset).</span></div>' +
-          '<div class="sidebar-width-ctl"><input type="range" id="setSidebarWidth" min="' + SIDEBAR_W.min + '" max="' + SIDEBAR_W.max + '" step="2" value="' + sidebarWidth() + '" aria-label="Sidebar width">' +
-            '<span class="pitch-value" id="sidebarWidthValue">' + sidebarWidth() + ' px</span>' +
-            '<button class="ghost-btn" id="sidebarWidthReset">Reset</button></div></div>' +
-        '<div class="settings-row"><div class="settings-label">Always open on<span>The page Heat-Bits shows when it starts.</span></div>' +
-          '<select class="field start-page-select" id="setStartPage">' + startPageOptionsHtml() + '</select></div>' +
-        toggleRow("setHideTitles", "Hide page titles", "Removes the title and subtitle from This Week, Calendar, All Habits, Graphs and Settings. Habit pages keep theirs.", !!setting("hidePageTitles", false)) +
-        toggleRow("setHideTodoDates", "Hide to-do dates and times", "Hides the date and time fields shown to the right of each to-do.", !!setting("hideTodoDates", false)) +
-        toggleRow("setHideKindIcons", "Hide calendar icons", "Removes the small to-do, activity and reminder icons from the boxes on the week calendar.", !!setting("hideKindIcons", false)) +
-        toggleRow("setTrackerNumbers", "Numbers on trackers", "In This Week's Trackers list, each square shows how many days that tracker was done this week.", setting("trackerNumbers", true) !== false) +
-        '<div id="trackerNumberOpts"' + (setting("trackerNumbers", true) !== false ? '' : ' class="hidden"') + '>' +
-          '<div class="settings-row"><div class="settings-label">Tracker number style<span>How thick the numbers are.</span></div>' +
-            '<div class="cal-view-toggle">' +
-              TN_WEIGHTS.map(function (o) {
-                return '<button class="view-toggle-btn' + (setting("trackerNumberWeight", "bold") === o[0] ? " active" : "") + '" data-tn-weight="' + o[0] + '" style="font-weight:' + o[2] + '">' + o[1] + '</button>';
-              }).join("") +
-            '</div></div>' +
-          '<div class="settings-row"><div class="settings-label">Tracker number opacity<span>Lower it so the numbers sit quietly behind the color.</span></div>' +
-            '<div class="pitch-slider"><span class="tn-preview"><span class="wt-square" id="tnPreviewLight">3</span><span class="wt-square" id="tnPreviewDark">5</span></span>' +
-              '<input type="range" id="trackerNumberRange" min="10" max="100" step="5" value="' + Math.min(100, Math.max(10, +setting("trackerNumberOpacity", 45) || 45)) + '" aria-label="Tracker number opacity">' +
-              '<span class="pitch-value" id="trackerNumberValue">' + Math.min(100, Math.max(10, +setting("trackerNumberOpacity", 45) || 45)) + '%</span></div></div>' +
-        '</div>' +
-        toggleRow("setPatternBorders", "Patterned calendar boxes", "On the week calendar, to-dos get a squiggly border, activities a square-wave border and reminders a sawtooth border, so they're easy to tell apart.", !!setting("patternBorders", false)) +
-        (hbIsWindowsApp() ?
-          toggleRow("setCloseToTray", "Keep running when closed", "The X hides Heat-Bits in the tray (by the clock) instead of quitting, so alarms, sync and the quick-note shortcut keep working. Click the tray icon to open it again; right-click it to quit.", setting("closeToTray", true) !== false) +
-          toggleRow("setGlobalHotkey", "Quick note from any program", "Ctrl+Shift+Q opens a small quick-note box over whatever you're doing. Type a title, press Enter, write the note and press Enter again to save it in Quick notes.", setting("globalHotkey", true) !== false)
-          : '') +
-      '</div>' +
+      (HB ? '<div class="graph-card settings-card" id="syncCard" data-keywords="sync devices phone pair pairing qr code android connect"></div>' : '') +
+      // ---- PC app (Windows) ----
+      (hbIsWindowsApp() ? '<div class="graph-card settings-card" id="desktopCard" data-keywords="behavior behaviour windows pc app tray background close quit hotkey shortcut ctrl shift q quick note popup">' +
+        '<div class="graph-head"><span class="graph-name">Behavior</span></div>' +
+        toggleRow("setCloseToTray", "Keep running when closed", "The X hides Heat-Bits in the tray (by the clock) instead of quitting, so alarms, sync and the quick-note shortcut keep working. Click the tray icon to open it again; right-click it to quit.", setting("closeToTray", true) !== false) +
+          toggleRow("setGlobalHotkey", "Quick note from any program", "Ctrl+Shift+Q opens a small quick-note box over whatever you're doing. Type a title, press Enter, write the note and press Enter again to save it in Quick notes.", setting("globalHotkey", true) !== false) +
+      '</div>' : '') +
 
-      // ---- Heat map ----
-      '<div class="graph-card settings-card" id="heatmapCard">' +
-        '<div class="graph-head"><span class="graph-name">Heat map</span></div>' +
-        '<div class="settings-row stacked"><div class="settings-label">Layout<span>Applies to every habit, All Habits, This Week and each tracker\'s mini heat map.</span></div>' +
-          '<div class="layout-grid">' +
-            [["year", "Calendar year", "January to December, with arrows to browse other years."],
-             ["centered", "Centered on today", "A rolling year: about six months back and six months ahead, with today in the middle."],
-             ["rolling", "Today on the right", "The last year, with today as the final day at the right edge. Nothing is shown after today."]].map(function (o) {
-              return '<button class="layout-option' + (hm === o[0] ? " active" : "") + '" data-layout-opt="' + o[0] + '">' +
-                previewHtml(o[0]) + '<strong>' + o[1] + '</strong><span>' + o[2] + '</span></button>';
-            }).join("") +
-          '</div></div>' +
-      '</div>' +
-
-      // ---- Help (phones have no sidebar, so the tour is reachable from here too) ----
-      '<div class="graph-card settings-card" id="helpCard">' +
-        '<div class="graph-head"><span class="graph-name">Help</span></div>' +
-        '<div class="settings-row"><div class="settings-label">Tour<span>A short walk through the main screens.</span></div>' +
-          '<div class="settings-actions"><button class="ghost-btn" id="settingsTourBtn">Show the tour</button></div></div>' +
-      '</div>' +
+      (HB ? '<div class="graph-card settings-card" id="dataCard" data-keywords="data storage folder location move files pictures backup"></div>' : '') +
 
       // ---- Settings backup ----
-      '<div class="graph-card settings-card" id="settingsFileCard">' +
+      '<div class="graph-card settings-card" id="settingsFileCard" data-keywords="backup export import settings file">' +
         '<div class="graph-head"><span class="graph-name">Settings file</span></div>' +
         '<div class="settings-row"><div class="settings-label">Export or import settings<span>Only your settings and colors, not your habits. Use Export / import in the sidebar for your data.</span></div>' +
           '<div class="settings-actions">' +
@@ -5880,9 +5961,16 @@
           '<button class="ghost-btn" id="settingsPasteBtn">Load pasted settings</button></details>' +
         '<div class="settings-note" id="settingsFileStatus" role="status"></div>' +
         '<input type="file" id="settingsFileInput" class="hidden" accept=".json,application/json,text/plain">' +
+      '</div>' +
+      // ---- Help (phones have no sidebar, so the tour is reachable from here too) ----
+      '<div class="graph-card settings-card" id="helpCard" data-keywords="help tour guide">' +
+        '<div class="graph-head"><span class="graph-name">Help</span></div>' +
+        '<div class="settings-row"><div class="settings-label">Tour<span>A short walk through the main screens.</span></div>' +
+          '<div class="settings-actions"><button class="ghost-btn" id="settingsTourBtn">Show the tour</button></div></div>' +
       '</div>';
 
     function rerender() { applySettings(); renderSidebar(); renderMain(); }
+    wireSettingsSearch(main);
     renderAlarmsCard();
     buildSettingsIndex(main);
 
@@ -5917,6 +6005,20 @@
     });
     main.querySelectorAll("[data-font-opt]").forEach(function (b) {
       b.addEventListener("click", function () { setSetting("font", b.getAttribute("data-font-opt")); rerender(); });
+    });
+    main.querySelectorAll("[data-local-font]").forEach(function (b) {
+      function pick() { setSetting("localFonts", rememberedLocalFonts()); setSetting("font", "local:" + b.getAttribute("data-local-font")); rerender(); }
+      b.addEventListener("click", function (e) { if (!e.target.closest(".font-forget")) pick(); });
+      b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); pick(); } });
+    });
+    main.querySelectorAll("[data-forget-font]").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var name = b.getAttribute("data-forget-font");
+        setSetting("localFonts", rememberedLocalFonts().filter(function (n) { return n !== name; }));
+        if (setting("font", "default") === "local:" + name) setSetting("font", "default");
+        rerender();
+      });
     });
     main.querySelectorAll("[data-sidebar-side]").forEach(function (b) {
       b.addEventListener("click", function () { setSetting("sidebarSide", b.getAttribute("data-sidebar-side")); rerender(); });
@@ -6019,6 +6121,9 @@
       var name = document.getElementById("localFontInput").value.trim().replace(/["'<>;{}]/g, "");
       if (!name) { lfStatus.textContent = "Type the name of a font installed on this computer."; return; }
       var ok = !document.fonts || !document.fonts.check || document.fonts.check('16px "' + name + '"');
+      var keep = rememberedLocalFonts().filter(function (n) { return n.toLowerCase() !== name.toLowerCase(); });
+      keep.unshift(name);
+      setSetting("localFonts", keep.slice(0, 20));
       setSetting("font", "local:" + name);
       rerender();
       var st = document.getElementById("localFontStatus");
@@ -12731,8 +12836,8 @@
       text: "The page Heat-Bits opens on, and what to hide" + (phone ? "." : ", like the sidebar or page titles.")
     });
     steps.push({
-      page: SETTINGS, target: "#heatmapCard", title: "Heat map",
-      text: "Show heat maps by calendar year, centered on today, or with today on the right."
+      page: SETTINGS, target: "#heatmapCard", title: "Heat maps & trackers",
+      text: "Show heat maps by calendar year, centered on today, or with today on the right, and set how the numbers on This Week's trackers look."
     });
     steps.push({
       page: phone ? SETTINGS : null, target: phone ? "#settingsTourBtn" : (collapsed ? ".help-item:not(.newnote-item)" : "#helpOpenBtn"),

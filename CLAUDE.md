@@ -53,11 +53,11 @@ page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClien
   Each `/hb/sync` reply carries `files` (the ids on the PC's disk). Afterwards `SyncClient._syncFiles` POSTs the phone's
   missing ones to `/hb/file/<id>` and GETs the ones it lacks (Bearer token). Arrivals send the page a `files` event, and
   `retryMissingImages()` reloads images that failed. In a browser, pictures live in localStorage (`heat-bits-files`).
-  Notes write them as `![[img-….jpg]]` / `![[…|300]]`; canvases use cards `{type: "image", file}`. Unused files aren't cleaned up.
+  Notes write them as `![[img-….jpg]]` / `![[…|300]]`; canvases use cards `{type: "image", file}`. Pictures nothing refers to any more are deleted when the app closes or starts (`AppController.cleanUpPictures`, `unusedFileIds`).
   The page has the same list as `HB_SYNC_KEYS`.
 - Settings sync too while **Sync settings** (`settings.syncSettings`, a switch in Devices & sync, on by default) is on
   on *both* devices. `sharedPrefs()` = `settings` minus `localSettings` (tutorialSeen, demoAdded, soundDueDay,
-  syncSettings, closeToTray, globalHotkey; the page has the same list as `HB_LOCAL_SETTINGS`) plus `allColor`. The phone sends `prefs` and
+  syncSettings, closeToTray, globalHotkey, localFonts; the page has the same list as `HB_LOCAL_SETTINGS`) plus `allColor`. The phone sends `prefs` and
   `prefsBase` (kept in `meta.prefsBase`) with each sync; the PC merges them with `mergePrefs` (the PC wins clashes the
   first time) and answers with `prefs`. The page applies settings it's sent in `hbApplyRemote` and calls `applySettings()`.
   `AppController._pagePart` adds `_prefs` to what the rev mechanism compares, so a stale page save can't undo synced settings.
