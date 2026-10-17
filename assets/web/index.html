@@ -92,7 +92,7 @@
     flex-direction: column;
     gap: 18px;
     transition: width 0.18s ease, padding 0.18s ease;
-    overflow: hidden;
+    overflow: clip; /* clip, not hidden: hidden would make the sidebar a scroll box and stop .side-nav sticking to the page */
   }
   .sidebar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
   /* drag the sidebar's right edge to change its width */
@@ -156,6 +156,10 @@
   .app.collapsed .habit-dot:not(.icon-dot):not(.all-dot) { opacity: 0.35; }
 
   .habit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  /* the views above the divider follow you down the page. It's a child of the sidebar itself (which is as
+     tall as the page), because a sticky element can't leave its parent */
+  .side-nav { position: sticky; top: 0; z-index: 4; background: var(--bg); margin: -8px 0; padding: 8px 0; }
+  .side-nav + .habit-list { margin-top: -16px; } /* the sidebar's 18px gap, minus the list's own 2px */
   .habit-item {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 10px; border-radius: var(--radius);
@@ -626,6 +630,19 @@
   .app.phone .main.notes-page > .habit-head { display: none; }
   .app.phone .notes-layout.phone .notes-side { height: calc(100vh - 92px - env(safe-area-inset-bottom)); height: calc(100dvh - 92px - env(safe-area-inset-bottom)); }
   .app.phone .notes-layout.phone .notes-tree { flex: 1; min-height: 0; }
+  /* phones: no box around the list, and bigger rows for fingers */
+  .app.phone .notes-layout.phone .notes-side { border: none; border-radius: 0; background: transparent; }
+  .app.phone .notes-layout.phone .notes-side-head { padding: 4px 2px 10px; }
+  .app.phone .notes-layout.phone .notes-side-foot { padding: 8px 2px; gap: 8px; }
+  .app.phone .notes-layout.phone .notes-side-foot .notes-icon-btn { width: 40px; height: 40px; font-size: calc(16px * var(--fs, 1)); }
+  .app.phone .notes-layout.phone .notes-side-foot .notes-icon-btn svg { width: 20px; height: 20px; }
+  .app.phone .notes-layout.phone .notes-tree { padding: 6px 0 10px; }
+  .app.phone .notes-layout.phone .nt-row { font-size: calc(15.5px * var(--fs, 1)); min-height: 38px; gap: 8px; }
+  .app.phone .notes-layout.phone .nt-name small { font-size: calc(12.5px * var(--fs, 1)); }
+  .app.phone .notes-layout.phone .nt-count { font-size: calc(12.5px * var(--fs, 1)); }
+  .app.phone .notes-layout.phone .nt-caret { font-size: 12px; width: 12px; flex-basis: 12px; }
+  .app.phone .notes-layout.phone .nt-ico svg, .app.phone .notes-layout.phone .nt-act svg { width: 17px; height: 17px; }
+  .app.phone .notes-layout.phone .nt-dot { width: 12px; height: 12px; }
   /* resize grip in the gap to the right of the list (same look as the week view's) */
   .notes-resize { position: absolute; top: 0; bottom: 0; right: -15px; width: 10px; cursor: ew-resize; z-index: 2;
     display: flex; align-items: center; justify-content: center; touch-action: none; }
@@ -845,6 +862,13 @@
     background: var(--surface); border: 1px solid var(--border-strong); border-top: 4px solid var(--cv-color, var(--border-strong));
     border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
   .cv-card.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* touch: a long press picks the card up */
+  .cv-card.lifted { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28); transform: scale(1.03); z-index: 2; }
+  .notes-layout.phone .cv-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .notes-layout.phone .cv-edit { -webkit-user-select: text; user-select: text; }
+  /* a card body scrolls (overflow: auto), and the board's touch-action: none stops at a scroll box, so the
+     browser would take a drag on a card as a scroll and cancel it a few pixels in */
+  .cv-card, .cv-card *:not(textarea) { touch-action: none; }
   .cv-card-title { display: flex; align-items: center; gap: 6px; padding: 8px 12px 0; font-weight: 600; font-size: calc(14px * var(--fs, 1)); }
   .cv-card-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px 10px; font-size: calc(13.5px * var(--fs, 1)); }
   .cv-card-body > :first-child { margin-top: 0; }
@@ -873,6 +897,11 @@
   .md-help-link { border: none; background: none; color: var(--accent); font: inherit; cursor: pointer; padding: 0; white-space: nowrap; }
   .md-help-link:hover { text-decoration: underline; }
   .modal.md-help-modal { width: calc(720px * max(1, var(--fs, 1))); max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); overflow-y: auto; }
+  /* stays at the top right while the help scrolls, so you can close it without scrolling down to Got it */
+  .md-help-x { position: sticky; top: 0; float: right; z-index: 2; margin: -8px -8px 0 8px; width: 36px; height: 36px; padding: 0;
+    border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--ink-soft);
+    font-size: calc(15px * var(--fs, 1)); cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+  .md-help-x:hover { color: var(--ink); border-color: var(--border-strong); }
   .md-help-rows { margin-bottom: 14px; }
   .md-help-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--border); align-items: start; }
   .md-help-name { font-weight: 600; font-size: calc(13px * var(--fs, 1)); }
@@ -1606,7 +1635,8 @@
     .subtracker-head { flex-wrap: wrap; row-gap: 8px; }
     .subtracker-head .mini-dow-row { order: 5; }
     .subtracker-head .mini-complete-btn { order: 6; margin-left: auto; }
-    .mini-heatmap-wrap { overflow-x: auto; padding-bottom: 8px; }
+    .mini-heatmap-wrap { overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+    .mini-heatmap-wrap::-webkit-scrollbar { display: none; width: 0; height: 0; }
   }
   .mini-weeks-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 8px); gap: 2px; width: max-content; }
   .mini-cell {
@@ -1740,13 +1770,17 @@
       overflow-x: auto;
       gap: 4px;
     }
+    .side-nav { position: static; margin: 0; padding: 0; background: none; }
+    .app.collapsed .side-nav { flex: none; overflow: visible; }
+    .app.collapsed .side-nav + .habit-list { margin-top: 0; margin-left: -6px; }
     .app.collapsed .list-divider { display: block; width: 1px; height: 20px; margin: 0 4px; }
   }
   /* phones (and very narrow windows): a sticky icon bar on top, scrollable heat maps */
   .app.phone .collapse-btn { display: none; }
   .app.phone .sidebar { position: sticky; top: 0; z-index: 60; background: var(--bg); padding: 8px 10px; }
   .app.phone .main { padding: 14px 12px 40px; }
-  .app.phone .heatmap-wrap { overflow-x: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
+  .app.phone .heatmap-wrap { overflow-x: auto; padding: 12px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .app.phone .heatmap-wrap::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .app.phone .heatmap-inner { width: max-content; min-width: 100%; }
   .app.phone .year-nav { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 50px); }
   /* the label column covers the 12px of padding too, so no squares peek out to its left while scrolling */
@@ -1941,6 +1975,7 @@
       <button class="collapse-btn" id="collapseToggle" title="Collapse sidebar">‹</button>
     </div>
 
+    <ul class="habit-list side-nav" id="sideNav"></ul>
     <ul class="habit-list" id="habitList"></ul>
 
     <div class="new-habit">
@@ -2169,6 +2204,7 @@
 
 <div class="modal-backdrop" id="mdHelpBackdrop">
   <div class="modal md-help-modal" role="dialog" aria-modal="true" aria-labelledby="mdHelpTitle">
+    <button type="button" class="md-help-x" id="mdHelpX" title="Close" aria-label="Close">✕</button>
     <h3 id="mdHelpTitle">How to write notes</h3>
     <div class="modal-sub" id="mdHelpSub"></div>
     <div class="md-help-rows" id="mdHelpRows"></div>
@@ -3213,7 +3249,10 @@
   function render() { applySettings(); renderSidebar(); renderMain(); }
 
   function renderSidebar() {
-    var list = document.getElementById("habitList");
+    var outer = document.getElementById("habitList");
+    outer.innerHTML = "";
+    // the views (This Week … All Habits) go in #sideNav, which stays in view while the page scrolls
+    var list = document.getElementById("sideNav");
     list.innerHTML = "";
 
     var wk = document.createElement("li");
@@ -3258,6 +3297,7 @@
       '<span class="habit-streak">' + state.habits.length + '</span>';
     all.addEventListener("click", function () { state.selectedId = ALL; saveState(); render(); });
     list.appendChild(all);
+    list = outer;
 
     if (state.habits.length) {
       var div = document.createElement("li");
@@ -10728,6 +10768,7 @@
     else if (e.target.closest(".cv-help-btn")) { e.preventDefault(); openCanvasHelp(); }
   });
   document.getElementById("mdHelpClose").addEventListener("click", closeMdHelp);
+  document.getElementById("mdHelpX").addEventListener("click", closeMdHelp);
   mdHelpBackdrop.addEventListener("click", function (e) {
     if (e.target === mdHelpBackdrop) closeMdHelp();
     if (e.target.closest("a")) e.preventDefault(); // the examples' links go nowhere
@@ -12459,6 +12500,8 @@
       if (ids.length === 2) {
         // second finger: pinch, whatever the first one was doing
         var a = pointers[ids[0]], b = pointers[ids[1]];
+        if (g && g.timer) clearTimeout(g.timer);
+        if (g && g.el) g.el.classList.remove("lifted");
         g = { kind: "pinch", dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
         board.setPointerCapture(e.pointerId);
         return;
@@ -12471,6 +12514,19 @@
         g = { kind: "connect", from: c, x1: c.x + c.w / 2, y1: c.y + c.h / 2 };
       } else if (c && e.target.closest(".cv-resize")) {
         g = { kind: "resize", card: c, sx: w0.x, sy: w0.y, w: c.w, h: c.h, el: cardEl };
+      } else if (c && e.pointerType === "touch") {
+        // touch: a swipe on a card moves the board; holding it half a second picks the card up
+        g = { kind: "hold", card: c, el: cardEl, cx: e.clientX, cy: e.clientY, sx: e.clientX, sy: e.clientY, x: view.x, y: view.y };
+        var hold = g;
+        hold.timer = setTimeout(function () {
+          if (g !== hold) return;
+          var p = toWorld(hold.cx, hold.cy);
+          g = { kind: "move", card: c, sx: p.x, sy: p.y, x: c.x, y: c.y, el: cardEl, moved: false, lifted: true };
+          cardEl.classList.add("lifted");
+          try { if (navigator.vibrate) navigator.vibrate(15); } catch (x) {}
+          playSound("pick");
+        }, 500);
+        if (!(cvSel && cvSel.type === "card" && cvSel.id === c.id)) { cvSel = { type: "card", id: c.id }; drawSelBar(); cardsEl.querySelectorAll(".cv-card").forEach(function (x) { x.classList.toggle("sel", x === cardEl); }); drawEdges(); }
       } else if (c) {
         g = { kind: "move", card: c, sx: w0.x, sy: w0.y, x: c.x, y: c.y, el: cardEl, moved: false };
         if (!(cvSel && cvSel.type === "card" && cvSel.id === c.id)) { cvSel = { type: "card", id: c.id }; drawSelBar(); cardsEl.querySelectorAll(".cv-card").forEach(function (x) { x.classList.toggle("sel", x === cardEl); }); drawEdges(); }
@@ -12499,6 +12555,12 @@
         g.dist = dist; g.mx = mx; g.my = my;
         return;
       }
+      if (g.kind === "hold") {
+        g.cx = e.clientX; g.cy = e.clientY;
+        if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < 8) return;
+        clearTimeout(g.timer);
+        g = { kind: "pan", sx: g.sx, sy: g.sy, x: g.x, y: g.y };
+      }
       if (g.kind === "pan") { view.x = g.x + e.clientX - g.sx; view.y = g.y + e.clientY - g.sy; applyView(); return; }
       var p = toWorld(e.clientX, e.clientY);
       if (g.kind === "move") {
@@ -12523,6 +12585,9 @@
       g = null;
       board.classList.remove("busy");
       if (!cur) return;
+      if (cur.timer) clearTimeout(cur.timer);
+      if (cur.lifted) { cur.el.classList.remove("lifted"); if (cur.moved) playSound("drop"); }
+      if (cur.kind === "hold") return; // a plain tap: the card is selected, nothing else
       if (cur.kind === "pan" || cur.kind === "pinch") { saveView(); return; }
       if (cur.kind === "move" && cur.moved) changed();
       if (cur.kind === "resize") changed();
@@ -12536,6 +12601,8 @@
         drawEdges();
       }
     }
+    // Android's long-press menu would cancel the pointer and drop the card
+    board.addEventListener("contextmenu", function (e) { if (!e.target.closest("textarea, input")) e.preventDefault(); });
     board.addEventListener("pointerup", endGesture);
     board.addEventListener("pointercancel", endGesture);
     board.addEventListener("keydown", function (e) {
