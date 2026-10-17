@@ -1,143 +1,172 @@
 # Heat-Bits
 
-**Habit heat maps, a calendar and to-dos for Windows and Android, kept in sync over your home Wi-Fi.**
+Habit tracker (heat maps), calendar, to-dos, Markdown notes and alarms for **Windows** and **Android**, built as one
+Flutter app. The PC and the phone sync directly over the local network: the PC runs the sync server, the phone is
+the client. There is no internet server, account or cloud storage.
 
-No account, no cloud, no subscription. Your data lives on your own PC and phone, and they talk to each other
-directly on your network.
-
-**[Download the latest version](https://github.com/DanielLeon2143/heat-bits/releases/latest)**:
-`Heat-Bits-Windows.zip` for the PC, `Heat-Bits.apk` for an Android phone.
-
----
-
-## What it does
-
-- **Habits with heat maps.** Track yes/no habits ("Went for a run") or measurable ones ("Pages read: 30").
-  Every day fills in a square, so your streaks and gaps show at a glance.
-- **Calendar.** Week and month views with an hour grid. Put habits, activities and reminders on it, and drag
-  them around.
-- **To-dos.** A task list next to your week, so today's plans and today's habits are in one place.
-- **Trackers and graphs.** See how each habit is going over weeks and months.
-- **Reminders** for things that come back regularly, like bills or appointments.
-- **Notes.** Markdown notes like Obsidian. Every habit and tracker has its own folder, and you can add your own
-  folders and notes. Link notes with `[[Note name]]` and click a link to jump to it. Sort by name, date, or your
-  own order (just drag). **Canvases** are boards for laying out notes and text cards and connecting them with arrows.
-  Add **pictures** to notes and canvases: with the button, by pasting, or by dropping them in.
-- **Alarms and notifications.** Set alarms in Settings → Alarms, or an alert on any to-do, activity, habit or
-  reminder (double-click it on the week calendar). Each one rings on the PC, the phone or both, even when
-  Heat-Bits is closed. An alarm keeps ringing until you stop or snooze it.
-- **Runs in the background (PC).** Closing the window keeps Heat-Bits in the tray, next to the clock, like Discord. Click the
-  icon to open it again, or right-click it and choose **Quit**. Press **Ctrl+Shift+Q** in any program to jot a quick note in
-  a small box. Type a title and press Enter, then type the note and press Enter again. Both can be turned off in Settings → Layout.
-- **Make it yours.** Themes, colours, fonts and layout, set separately on each device.
-- **Backups.** Export everything to a file and import it again whenever you like.
-
-## How the sync works
-
-- The **PC** keeps the main copy. The **phone** pairs with it once by scanning a QR code.
-- After that, tick a habit on either one and it shows up on the other within a second or two.
-- The phone works offline too. Changes are kept and sent the next time it's on the same Wi-Fi as the PC.
-- Edits made on both at once are merged item by item, so nothing gets overwritten.
-- Habits, to-dos, activities, reminders, alarms and notes sync. Settings (theme, font, layout) stay separate on each device.
-- If the same note is changed on both devices before they sync, the most recent copy to arrive wins.
-- Pictures are copied to the other device once, right after a sync. Big photos are made smaller (2000 pixels on the
-  longest side) when you add them. Export / import backs up your notes but not the pictures themselves.
-- An alarm set on the PC reaches the phone the next time the phone syncs (when Heat-Bits is open on it).
-- Nothing leaves your home network. There's no server on the internet.
+Releases: [latest](https://github.com/DanielLeon2143/heat-bits/releases/latest). `Heat-Bits-Windows.zip` (unzip, run
+`heat_bits.exe`) and `Heat-Bits.apk` (sideload). Every push to `main` builds both (see [CI](#ci)).
 
 ---
 
-## Get started
+## Architecture
 
-### 1. Install on the PC (Windows 10 or 11)
+```
+page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClient (phone)
+                                          |
+                                        Store (heatbits.json) + Attachments (attachments/)
+```
 
-1. Download **`Heat-Bits-Windows.zip`** from the [latest release](https://github.com/DanielLeon2143/heat-bits/releases/latest).
-2. Unzip it somewhere you'll keep it (for example `Documents\Heat-Bits`) and run **`heat_bits.exe`**.
-   Keep the whole folder together.
-3. The first time, Windows asks whether to let it use the network. Tick **Private networks** and click
-   **Allow**. That's how the phone reaches the PC.
+- **The whole UI is one web page**, `assets/web/index.html` (vanilla JS, no framework, no build step), shown in a
+  web view (`flutter_inappwebview`; WebView2 on Windows). The same file runs standalone in a browser on
+  `localStorage` when the app isn't there (`window.__HB_HOST__` missing).
+- **Dart (`lib/`) does storage, the page bridge, LAN sync, alerts and the Windows desktop parts.** The only Flutter
+  widgets are the web view, the QR scanner and the Android alarm screen.
+- Role: `isHost = !Platform.isAndroid`. Windows runs `SyncHost`, Android runs `SyncClient`.
 
-### 2. Install on the phone (Android)
-
-1. On the PC, open **Settings → Devices & sync**. Under the pairing code there's a second QR code,
-   **Get the Android app**.
-2. Scan it with the phone's camera. It downloads **`Heat-Bits.apk`**.
-3. Open the download and tap **Install**. The first time, Android asks you to allow installing apps from your
-   browser. Allow it.
-
-(Or open the [latest release](https://github.com/DanielLeon2143/heat-bits/releases/latest) on the phone and tap `Heat-Bits.apk`.)
-
-### 3. Pair the phone (one time)
-
-1. Make sure the phone is on the **same Wi-Fi** as the PC.
-2. On the phone, open Heat-Bits, go to **Settings → Devices & sync** and tap **Scan QR code** (allow the camera).
-3. Point it at the pairing code on the PC screen.
-
-That's it. The habits from both are put together, and from then on both stay in sync. If both have a habit with
-the same name, the phone asks which one to keep, or lets you keep both and rename one. No camera? Type the PC
-address and the 6-letter code shown under the QR code instead.
-
-After pairing:
-- The phone finds the PC again by itself, even if the PC's address changes.
-- **Settings → Devices & sync** shows whether they're connected, has a **Sync now** button, and lets you
-  remove a phone (on the PC) or unpair (on the phone).
-- Heat-Bits has to be running on the PC for syncing to happen. Closing the window leaves it running in the tray. If you
-  quit it, the phone catches up later.
-
-### Updating
-
-Download the newest release and replace the old files on the PC. On the phone, install the new
-`Heat-Bits.apk`. If Android says **"App not installed"**, uninstall the old version first, then install the
-new one and pair again. Your data comes back from the PC.
-
-### Coming from the old Heat-Bits desktop app?
-
-1. In the **old** app: sidebar → **Export / import** → **Full backup (JSON)**.
-2. In the **new** app on the PC: sidebar → **Export / import** → **Import from a file** → pick that backup →
-   **Replace my data** (or **Merge** if you've already added things).
-3. Pair the phone afterwards (or press **Sync now**). The phone gets everything.
-
----
-
-## If something doesn't work
-
-- **The phone says it can't find the PC.** Both must be on the same Wi-Fi. A guest network usually won't work,
-  because it stops devices from seeing each other. Heat-Bits must be open on the PC. If you clicked **Cancel**
-  on the Windows network prompt, go to Windows Security → Firewall & network protection → Allow an app
-  through firewall, and tick **heat_bits** for Private.
-- **"That code doesn't match."** The code changes when someone presses **New code** on the PC. Scan again.
-- **The phone shows "removed this phone".** It was removed on the PC. Pair again.
-- **The Windows app opens to a blank window.** Heat-Bits uses Microsoft's WebView2, which comes with
-  Windows 10 and 11. If it's missing, install the "Evergreen Bootstrapper" from
-  https://developer.microsoft.com/microsoft-edge/webview2/.
-- **Is it syncing?** The line at the bottom of the PC's sidebar says how many phones are connected. On the
-  phone, Settings → Devices & sync says when it last synced.
-
----
-
-## For developers
-
-Heat-Bits is one [Flutter](https://flutter.dev) app for Windows and Android. All the screens are a single web
-page (`assets/web/index.html`, plain JavaScript) shown in a web view. The Dart code adds file storage and
-the Wi-Fi sync.
-
-| File | What it does |
+| File | Role |
 |---|---|
-| `assets/web/index.html` | The whole interface (also runs on its own in a browser, using `localStorage`) |
-| `lib/main.dart` | Starts everything and shows the page in a web view |
-| `lib/app_controller.dart` | Passes data between the page, the file on disk and the other device |
-| `lib/ui_server.dart` | Serves the page to the web view (this device only, `127.0.0.1:47813`) |
-| `lib/sync_host.dart` | PC: pairing, sync server (`47811` TCP), discovery replies (`47812` UDP) |
-| `lib/sync_client.dart` | Phone: finds the PC, keeps a live connection, syncs, works offline |
-| `lib/merge.dart` | The three-way merge that keeps edits from both devices |
-| `lib/store.dart` | Saves everything to one JSON file in the app's data folder |
-| `lib/files.dart` | Pictures in notes and canvases, kept as files next to the data and copied between devices |
-| `lib/alerts.dart` | Alarms and notifications, scheduled with the system so they ring when the app is closed |
-| `tool/prepare.dart` | Patches the generated `android/` and `windows/` folders (permissions, app name, fixes) |
+| `assets/web/index.html` | The entire interface: habits, calendar, to-dos, notes, canvases, graphs, settings, tour |
+| `lib/main.dart` | Boot, web view, Android back button, lifecycle (save on pause, sync on resume), clean close on Windows |
+| `lib/app_controller.dart` | Hub between page, store and sync. Data folder moves, Obsidian folder import/export, exports |
+| `lib/ui_server.dart` | Loopback HTTP server for the page (`127.0.0.1:47813`): page + boot data, SSE events, `/api/*` |
+| `lib/sync_host.dart` | PC: pairing, `/hb/sync` (3-way merge), `/hb/ws` change pushes, picture transfer, UDP discovery |
+| `lib/sync_client.dart` | Phone: pairing (QR/manual), host discovery, WebSocket with backoff, debounced offline-first sync |
+| `lib/merge.dart` | Pure-Dart three-way merge, settings merge, habit/note clash detection (main unit-test target) |
+| `lib/store.dart` | `heatbits.json` persistence, debounced atomic writes, custom data folder |
+| `lib/files.dart` | Picture attachments: save/serve/list/copy, unused-picture cleanup |
+| `lib/alerts.dart` | Alarms and notifications via `flutter_local_notifications` (scheduled with the OS) |
+| `lib/net_util.dart` | Ports, LAN addresses (skips virtual adapters), JSON over HTTP, discovery |
+| `lib/qr_svg.dart`, `lib/scan_screen.dart` | Pairing QR (SVG) and the camera scanner |
+| `tool/windows/hb_desktop.cpp/.h` | Native Win32: tray icon, global Ctrl+Shift+Q quick-note popup, folder picker |
+| `tool/prepare.dart` | Patches the generated `android/` and `windows/` projects (see [Building](#building)) |
 
-### Building
+## Features
 
-The `android/` and `windows/` folders are generated, not stored in the repo. Create them once:
+- **Habits:** yes/no or measurable, per-weekday schedules and times, heat maps (calendar year, rolling or centered on
+  today), streaks, an initial-goal counter, sub-trackers with their own heat maps.
+- **Calendar:** month and week views (hour grid with drag/resize), plus an **Alarms** view: a clock-style list of
+  everything that can ring, sorted by time, with on/off switches.
+- **To-dos, activities, reminders** (one-off or repeating, monthly reminders).
+- **Notes:** Markdown with a live editor, `[[links]]`, backlinks, folders (habit/tracker folders are derived from the
+  habits), canvases (cards and arrows), pictures, to-do chips. Habit pages show the habit's description note and its
+  other notes as tiles. Collapsible note list (Ctrl+\\).
+- **Obsidian import/export:** a vault folder, a `.zip` or loose `.md`/`.canvas` files in; a `.zip` or a folder out.
+  Links, embeds and JSON Canvas files are converted both ways.
+- **Graphs:** habit charts, time on the calendar, and a force-directed **notes graph** (links, embeds, canvas cards).
+- **Alerts:** notification or looping alarm on any habit/activity/to-do/reminder, plus standalone alarms. Each one is
+  set to PC, phone or both, and fires while the app is closed.
+- **Windows desktop:** tray icon (the close button hides to the tray), global **Ctrl+Shift+Q** quick-note popup, one
+  instance at a time.
+- **Settings:** themes and custom colours, fonts, sound, layout, data folder, export/import (JSON backup, CSV history).
+
+---
+
+## Data and storage
+
+- **One JSON file**, `heatbits.json`: `{local, base, version, meta}`.
+  - `local`: the full page state.
+  - `base`: on the phone, the last state both devices agreed on.
+  - `version`: on the PC, bumped on every change.
+  - `meta`: device id, pairing, devices, scheduled alerts, pending note clashes.
+- Default location: the app support directory (Windows: `%APPDATA%\com.heatbits\Heat-Bits`). On the PC it can be
+  moved in **Settings → Data & storage**. The chosen folder is kept in `data-folder.txt` in the default location.
+  If that folder is missing at start-up, the app falls back to the default and says so.
+- Writes are debounced (300 ms) and atomic (`.tmp` + rename). An unreadable file is kept as `heatbits.json.broken-<ts>`.
+- **Pictures** are files in `attachments/` next to the JSON (ids like `img-<uid>.jpg`, resized to at most 2000 px when
+  added). The synced data only lists them (`files`). Pictures no note or canvas references are deleted when the app
+  closes or starts.
+- **Synced keys:** `habits`, `todos`, `activities`, `payments` (reminders), `alarms`, `notes`, `noteFolders`, `files`.
+  Everything else is per device, apart from settings (below).
+
+## Sync
+
+| Port | Protocol | Use |
+|---|---|---|
+| `47811` | TCP (HTTP + WebSocket), all interfaces | PC sync server |
+| `47812` | UDP | Discovery: `HEATBITS_DISCOVER <serverId>` → `HEATBITS_HERE <serverId> <port>` |
+| `47813` | TCP, loopback only | Page ↔ app (random port if taken) |
+
+- **Pairing:** the PC shows a QR code, `heatbits://pair?h=<ip,ip>&p=<port>&c=<CODE>&id=<serverId>&n=<name>`. The phone
+  posts the 6-character code to `POST /hb/pair` and gets a bearer token. Manual entry (address + code) also works.
+- **Finding the PC:** the phone tries the last host, then known hosts, then a UDP broadcast. It keeps a WebSocket open
+  (`/hb/ws`, backoff 5 s → 60 s). The PC pushes `{"type":"changed"}`, and the phone syncs (debounced 700 ms).
+- **Merge:** the phone sends `{base, doc}` to `POST /hb/sync`, and the PC runs `merge3(base, pc, phone)`:
+  - A change on one side wins.
+  - Maps merge key by key, and lists of `{id}` items merge item by item.
+  - Delete vs. untouched → deleted. Delete vs. edit → the edit is kept.
+  - A remaining clash takes the phone's value.
+- **First sync:** the first sync after pairing keeps everything from both sides. Habits with the same name but
+  different ids are shown to the user first (keep the PC's, keep the phone's, or keep both with one renamed).
+- **Note clashes:** a note whose title or text changed differently on both devices isn't merged. The PC keeps its
+  text, and the phone asks which version to keep (PC's, phone's, or both as separate notes). Older phones that don't
+  send `caps: ['noteClashes']` keep the old behaviour (the phone wins).
+- **Settings** sync while **Sync settings** is on on both devices, except per-device ones (tutorial, sounds-due,
+  tray, hotkey). The PC wins clashes on the first sync.
+- **Pictures** transfer after each sync (`/hb/file/<id>`): the phone uploads what the PC lacks and downloads what it
+  lacks.
+- The phone works offline and syncs when it can reach the PC. Heat-Bits must be running on the PC (the tray counts).
+
+## Security
+
+- The page server listens on loopback only, and every `/api/*` call needs a per-launch random key (`x-hb-key`).
+- Sync calls need the per-phone bearer token issued at pairing. Phones can be removed on the PC.
+- **LAN traffic is plain HTTP/WebSocket (no TLS).** It is meant for a trusted home network, so don't pair over
+  public Wi-Fi.
+- Picture ids and Obsidian folder paths are validated, so nothing reads or writes outside its folder.
+
+## Alerts
+
+- The page builds this device's alert list for the next 14 days (`alertList()`) and posts it to `/api/alerts`.
+  `alerts.dart` diffs it against what's scheduled and uses `zonedSchedule` with UTC times.
+- **Android:** exact alarms, the alarm audio stream, `FLAG_INSISTENT`, a full-screen intent and Snooze/Stop actions.
+  An alarm set on the PC reaches the phone at its next sync.
+- **Windows:** toasts, using `scenario="alarm"` with a looping sound for alarms.
+  - On start-up the app writes `HKCU\Software\Classes\CLSID\{guid}\LocalServer32`, so a toast button can start it.
+  - Windows drops every *scheduled* toast from an app that has never shown one immediately ("Element not found" in
+    `Microsoft-Windows-PushNotification-Platform/Operational`). The app registers itself on start-up with one
+    silent toast.
+
+## Windows specifics
+
+- Closing the window while the WebView2 engine is alive crashes Flutter (`0xC000041D`). So `WM_CLOSE` goes to Dart
+  first: it flushes the page, removes the web view, stops the servers, then destroys the window (with a 5 s fallback).
+- With **Keep running when closed** on, the close button minimizes and then hides the window. Minimizing first keeps
+  WebView2's own input window from staying over the desktop. **Quit** in the tray menu does a real close.
+- Single instance: the `HeatBits.Running` mutex. A second launch shows the first window.
+- Global hotkey Ctrl+Shift+Q (`RegisterHotKey`): a native popup when another app is focused, the page's own quick
+  note when Heat-Bits is. Both can be turned off in Settings → Layout.
+
+---
+
+## Install and pair
+
+1. **PC (Windows 10/11):** unzip `Heat-Bits-Windows.zip`, keep the folder together, run `heat_bits.exe`. Allow it on
+   **Private networks** at the firewall prompt, or phones can't connect. Requires WebView2, which comes with
+   Windows 10/11; otherwise install the Evergreen runtime.
+2. **Phone (Android 5+):** scan **Get the Android app** in the PC's Settings → Devices & sync, or download the APK
+   from Releases, then install it, allowing installs from the browser.
+3. **Pair:** phone and PC on the same Wi-Fi (guest networks usually isolate devices). On the phone: Settings →
+   Devices & sync → **Scan QR code**, or type the PC's address and code.
+
+**Updating:** replace the Windows folder and install the new APK. If Android refuses ("App not installed"),
+uninstall first and pair again. The data comes back from the PC.
+
+## Troubleshooting
+
+- **Phone can't find the PC:** check both are on the same network, Heat-Bits is running on the PC, and the firewall
+  allows `heat_bits` on Private networks. Only one PC instance can bind `47811`; a second one shows "port already in
+  use" in Settings.
+- **No notifications on Windows:** check Windows notification settings for Heat-Bits and Do Not Disturb. The event log
+  above shows dropped toasts.
+- **Blank window on Windows:** WebView2 is missing.
+- **Corrupt data file:** look for `heatbits.json.broken-<ts>` next to it. Export/import (JSON) is the manual backup.
+
+---
+
+## Building
+
+Platform folders (`android/`, `windows/`, …) are generated and gitignored. Create them once:
 
 ```
 flutter create --platforms=windows,android --org com.heatbits --project-name heat_bits .
@@ -145,12 +174,41 @@ dart run tool/prepare.dart
 flutter pub get
 ```
 
-- Run: `flutter run -d windows`, or `flutter run -d <your phone>` with USB debugging on
-- Tests: `flutter test`
+`prepare.dart` is safe to re-run. Native changes go there, never in the generated folders. It patches:
+
+- Android: permissions (network, camera, notifications, exact alarms, full-screen intent), cleartext HTTP,
+  `minSdk ≥ 21`, the notification plugin's receivers, `showWhenLocked`, core library desugaring and the status-bar icon.
+- Windows: app name and window size, the `heatbits/window` close channel, copying `tool/windows/hb_desktop.*` into the
+  runner, the single-instance mutex, and `-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` (needed with
+  MSVC 14.5x / VS 2026).
+
+Commands:
+
+- Run: `flutter run -d windows` or `flutter run -d <android device>`
+- Tests: `flutter test` (pure Dart: merge, clash detection, picture cleanup)
+- Lint: `flutter analyze`
 - Release build of both: `powershell -ExecutionPolicy Bypass -File build.ps1`
+- Inspect the page on Windows: build with `--dart-define=HB_DEVTOOLS=true` (DevTools protocol on `127.0.0.1:9222`).
+  Don't ship that build.
 
-You need Flutter, Visual Studio with **Desktop development with C++** for Windows, and the Android SDK with
-JDK 17 for the phone app.
+**Requirements:**
 
-Every push to `main` is built by GitHub Actions (`.github/workflows/build.yml`), which runs the tests and
-publishes a new release with the APK and the Windows zip.
+- Flutter **3.47.7**.
+- Windows: Visual Studio Build Tools with *Desktop development with C++* and the **C++ ATL** component (the
+  notifications plugin includes `atlbase.h`). A fresh `build/` needs `nuget.exe` on `PATH`, because the WebView plugin
+  downloads NuGet packages.
+- Android: the Android SDK and **JDK 17**.
+
+**Pinned:** `flutter_inappwebview: 6.2.0-beta.3`, exact and for the whole family. 6.1.5's Android part uses
+`proguard-android.txt`, which AGP 9 rejects, and `^` pulls mixed versions.
+
+## CI
+
+`.github/workflows/build.yml` runs on every push to `main`/`master`. It runs `flutter test`, builds the APK and the
+Windows zip, and publishes them as a GitHub release.
+
+## Repo docs
+
+- `CLAUDE.md`: detailed developer notes, including the page ↔ app contract, the sync model, notes, alerts, the tray,
+  dragging and the phone layout.
+- `heat-bits-tutorial-context.md`: every screen, selector and guided-tour step.
