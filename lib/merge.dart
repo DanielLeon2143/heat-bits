@@ -119,7 +119,7 @@ List<dynamic> _mergeIdList(List? base, List a, List b, bool preferB) {
 
 /// The parts of the app's data that sync between devices. Everything else
 /// (settings, which page is open, collapsed panels…) stays per device.
-const syncKeys = ['habits', 'todos', 'activities', 'payments'];
+const syncKeys = ['habits', 'todos', 'activities', 'payments', 'alarms', 'notes', 'noteFolders', 'files'];
 
 Map<String, dynamic> syncPart(Map<String, dynamic> state) =>
     {for (final k in syncKeys) k: state[k] ?? <dynamic>[]};
@@ -177,10 +177,52 @@ Map<String, dynamic> _habitSummary(Map h) {
   };
 }
 
+// ---------------- notes edited on both devices ----------------
+// A note's title and text are single values: if both devices changed one differently since they last
+// agreed, merge3 would just keep the phone's. Instead the PC keeps its own for now and the phone asks.
+
+const noteTextKeys = ['title', 'body'];
+
+Map<String, Map<String, dynamic>> _notesById(Object? doc) {
+  final list = asMap(doc)['notes'];
+  return {
+    if (list is List)
+      for (final n in list)
+        if (n is Map && n['id'] != null) n['id'].toString(): asMap(n),
+  };
+}
+
+/// Notes whose title or text was changed differently on the PC and the phone since [base].
+/// Each is `{id, pc: note, phone: note}` (the whole note as it is on each device).
+List<Map<String, dynamic>> noteClashes(Object? base, Map<String, dynamic> pc, Map<String, dynamic> phone) {
+  final b = _notesById(base), p = _notesById(phone);
+  final out = <Map<String, dynamic>>[];
+  _notesById(pc).forEach((id, pcNote) {
+    final was = b[id], ph = p[id];
+    if (was == null || ph == null) return;
+    final clash = noteTextKeys.any((k) => !deepEq(was[k], pcNote[k]) && !deepEq(was[k], ph[k]) && !deepEq(pcNote[k], ph[k]));
+    if (clash) out.add({'id': id, 'pc': pcNote, 'phone': ph});
+  });
+  return out;
+}
+
+/// [merged] (the usual sync merge) with the clashing notes merged the other way round: the PC's
+/// title/text win, and anything else changed on either side (folder, canvas cards…) still merges.
+Map<String, dynamic> keepPcText(Map<String, dynamic> merged, Object? base, List<Map<String, dynamic>> clashes) {
+  if (clashes.isEmpty) return merged;
+  final b = _notesById(base);
+  final fixed = {for (final c in clashes) c['id'] as String: merge3(b[c['id']], c['phone'], c['pc'], preferB: true)};
+  final notes = ((merged['notes'] as List?) ?? const []).map((n) {
+    final id = n is Map ? n['id']?.toString() : null;
+    return id != null && fixed.containsKey(id) ? fixed[id] : n;
+  }).toList();
+  return {...merged, 'notes': notes};
+}
+
 // ---------------- settings ----------------
 // Settings sync too (colors, font, sound, layout…) while "Sync settings" is on, on both devices.
 // These stay on each device whatever the switch says.
-const localSettings = {'tutorialSeen', 'demoAdded', 'soundDueDay', 'syncSettings'};
+const localSettings = {'tutorialSeen', 'demoAdded', 'soundDueDay', 'syncSettings', 'closeToTray', 'globalHotkey'};
 
 /// This device's "Sync settings" switch (on unless turned off).
 bool syncsSettings(Map<String, dynamic> state) => asMap(state['settings'])['syncSettings'] != false;

@@ -23,9 +23,39 @@ void _android() {
     'android.permission.ACCESS_WIFI_STATE',
     'android.permission.CHANGE_WIFI_MULTICAST_STATE',
     'android.permission.CAMERA',
+    // alarms and notifications (flutter_local_notifications)
+    'android.permission.POST_NOTIFICATIONS',
+    'android.permission.RECEIVE_BOOT_COMPLETED',
+    'android.permission.VIBRATE',
+    'android.permission.WAKE_LOCK',
+    'android.permission.USE_FULL_SCREEN_INTENT',
+    'android.permission.USE_EXACT_ALARM',
   ];
   final missing = perms.where((p) => !s.contains('"$p"')).map((p) => '    <uses-permission android:name="$p"/>\n').join();
   if (missing.isNotEmpty) s = s.replaceFirst('<application', '$missing    <application');
+  // exact alarms on Android 12 (USE_EXACT_ALARM covers 13 and later)
+  if (!s.contains('SCHEDULE_EXACT_ALARM')) {
+    s = s.replaceFirst('<application',
+        '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>\n    <application');
+  }
+  // the plugin's receivers: show scheduled alerts, put them back after a restart, handle Snooze/Stop
+  if (!s.contains('ScheduledNotificationReceiver')) {
+    s = s.replaceFirst('</application>', '''    <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+    </application>''');
+  }
+  // a ringing alarm can light the screen and show over the lock screen
+  if (!s.contains('showWhenLocked')) {
+    s = s.replaceFirst('android:name=".MainActivity"', 'android:name=".MainActivity"\n            android:showWhenLocked="true"\n            android:turnScreenOn="true"');
+  }
   // the app talks plain HTTP to itself (127.0.0.1) and to the PC on the home network
   if (!s.contains('usesCleartextTraffic')) {
     s = s.replaceFirst('<application', '<application\n        android:usesCleartextTraffic="true"');
@@ -45,7 +75,34 @@ void _android() {
       final v = int.parse(m.group(2)!);
       return v < 21 ? m.group(0)!.replaceFirst(m.group(2)!, '21') : m.group(0)!;
     });
+    // flutter_local_notifications needs Java library desugaring for scheduled alerts
+    if (!t.contains('oreLibraryDesugaring')) {
+      final kts = name.endsWith('.kts');
+      t = t.replaceFirst(
+          RegExp(r'compileOptions\s*\{'), kts ? 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true' : 'compileOptions {\n        coreLibraryDesugaringEnabled true');
+      t += kts
+          ? '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+          : "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n";
+    }
     g.writeAsStringSync(t);
+  }
+
+  // small white icon for the status bar (Android draws notification icons as a silhouette)
+  final icon = File('android/app/src/main/res/drawable/ic_stat_heatbits.xml');
+  if (!icon.existsSync()) {
+    icon.parent.createSync(recursive: true);
+    icon.writeAsStringSync('''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,4h7v7h-7z M13,4h7v7h-7z M4,13h7v7h-7z M13,13h7v7h-7z"/>
+</vector>
+''');
+  }
+  // R8 would drop the icon as unused (it's only named from Dart); keep it
+  final keep = File('android/app/src/main/res/raw/keep.xml');
+  if (!keep.existsSync()) {
+    keep.parent.createSync(recursive: true);
+    keep.writeAsStringSync('<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_heatbits" />\n');
   }
 }
 
@@ -120,6 +177,60 @@ static const UINT_PTR kHbCloseTimer = 0x4842;
 ''');
       fw.writeAsStringSync(w);
     }
+  }
+
+  // tray icon, Ctrl+Shift+Q from any program and the quick-note popup (tool/windows/hb_desktop.*)
+  for (final name in ['hb_desktop.h', 'hb_desktop.cpp']) {
+    File('tool/windows/$name').copySync('windows/runner/$name');
+  }
+  final runnerCmake = File('windows/runner/CMakeLists.txt');
+  if (runnerCmake.existsSync()) {
+    var c = runnerCmake.readAsStringSync().replaceAll('\r\n', '\n');
+    if (!c.contains('hb_desktop.cpp')) {
+      c = c.replaceFirst('  "flutter_window.cpp"\n', '  "flutter_window.cpp"\n  "hb_desktop.cpp"\n');
+      runnerCmake.writeAsStringSync(c);
+    }
+  }
+  if (fw.existsSync()) {
+    var w = fw.readAsStringSync().replaceAll('\r\n', '\n');
+    if (!w.contains('hb_desktop.h')) {
+      w = w.replaceFirst('#include <flutter/standard_method_codec.h>\n', '#include <flutter/standard_method_codec.h>\n\n#include "hb_desktop.h"\n');
+      w = w.replaceFirst('    } else {\n      result->NotImplemented();\n    }\n  });\n', '''    } else if (HbDesktopCall(call.method_name(), call.arguments())) {
+      result->Success();
+    } else {
+      result->NotImplemented();
+    }
+  });
+  HbDesktopInit(hb_hwnd, hb_window_channel.get());
+''');
+      w = w.replaceFirst('void FlutterWindow::OnDestroy() {\n', 'void FlutterWindow::OnDestroy() {\n  HbDesktopShutdown();\n');
+      w = w.replaceFirst('  if (message == WM_CLOSE && !hb_close_ready && hb_window_channel) {\n', '''  if (auto hb = HbDesktopMessage(hwnd, message, wparam, lparam, hb_close_ready)) {
+    return *hb;
+  }
+  if (message == WM_CLOSE && !hb_close_ready && hb_window_channel) {
+''');
+      fw.writeAsStringSync(w);
+    }
+  }
+  // one copy at a time: starting Heat-Bits again shows the one that's already running (often in the tray)
+  var m = main.readAsStringSync().replaceAll('\r\n', '\n');
+  if (!m.contains('HeatBits.Running')) {
+    m = m.replaceFirst('  flutter::DartProject project(L"data");\n', r'''  HANDLE hb_once = ::CreateMutexW(nullptr, FALSE, L"HeatBits.Running");
+  if (hb_once && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    HWND other = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Heat-Bits");
+    if (other) {
+      DWORD pid = 0;
+      ::GetWindowThreadProcessId(other, &pid);
+      ::AllowSetForegroundWindow(pid);
+      ::PostMessageW(other, ::RegisterWindowMessageW(L"HeatBits.Show"), 0, 0);
+    }
+    ::CoUninitialize();
+    return EXIT_SUCCESS;
+  }
+
+  flutter::DartProject project(L"data");
+''');
+    main.writeAsStringSync(m);
   }
 
   final rc = File('windows/runner/Runner.rc');

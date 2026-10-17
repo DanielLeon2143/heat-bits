@@ -15,6 +15,7 @@ import 'store.dart';
 ///   POST /hb/pair    {code, deviceId, deviceName} -> {token, serverId, serverName}
 ///   POST /hb/sync    {first, base, doc} -> {doc, version}       (needs the token)
 ///   GET  /hb/ws      WebSocket: the PC says "changed" so phones sync right away
+///   GET/POST `/hb/file/ID`  a picture from a note or canvas (needs the token; see files.dart)
 ///   UDP  47812       answers `HEATBITS_DISCOVER <id>` so a phone can find the PC after its IP changes
 class SyncHost {
   SyncHost(this.app);
@@ -231,12 +232,18 @@ class SyncHost {
         return;
       }
       Map<String, dynamic> merged;
+      var clashes = <Map<String, dynamic>>[];
       if (j['first'] == true) {
         // a newly paired phone: keep what's on both, minus the PC habits the user swapped for the phone's
         final drop = (j['drop'] is List ? j['drop'] as List : const []).map((e) => e.toString());
         merged = firstMerge(serverDoc, clientDoc, dropPc: drop);
       } else {
         merged = asMap(merge3(j['base'], serverDoc, clientDoc, preferB: true));
+        // a phone that can ask the user: notes whose text changed differently on both keep the PC's for now
+        if (j['caps'] is List && (j['caps'] as List).contains('noteClashes')) {
+          clashes = noteClashes(j['base'], serverDoc, clientDoc);
+          merged = keepPcText(merged, j['base'], clashes);
+        }
       }
       // settings: only when the phone sends them and this PC has "Sync settings" on too
       Map<String, dynamic>? prefs;
@@ -248,8 +255,30 @@ class SyncHost {
       }
       if (!deepEq(merged, serverDoc) || prefsChanged) app.applyNetworkData(merged, prefs: prefsChanged ? prefs : null);
       _seen(device);
-      await sendJson(req, {'doc': merged, 'version': _store.version, if (prefs != null) 'prefs': prefs});
+      // which pictures the PC has, so the phone can send the ones it's missing and fetch the rest
+      final files = (await app.files.list()).toList();
+      await sendJson(req, {
+        'doc': merged,
+        'version': _store.version,
+        if (prefs != null) 'prefs': prefs,
+        'files': files,
+        if (clashes.isNotEmpty) 'noteClashes': clashes,
+      });
       return;
+    }
+
+    if (path.startsWith('/hb/file/')) {
+      final id = Uri.decodeComponent(path.substring(9));
+      if (req.method == 'GET') {
+        await app.files.serve(req, id);
+        return;
+      }
+      if (req.method == 'POST') {
+        final ok = await app.files.save(id, req);
+        if (ok) app.filesArrived();
+        await sendJson(req, {'ok': ok}, status: ok ? 200 : 400);
+        return;
+      }
     }
 
     await sendJson(req, {'error': 'not found'}, status: 404);

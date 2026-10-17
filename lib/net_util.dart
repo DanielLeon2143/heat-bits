@@ -71,6 +71,31 @@ Future<Map<String, dynamic>> httpJson(String method, String host, int port, Stri
   }
 }
 
+/// A picture to or from the PC: [body] is sent as is; the reply's bytes come back (null on any failure).
+Future<List<int>?> httpBytes(String method, String host, int port, String path,
+    {List<int>? body, String? token, Duration timeout = const Duration(seconds: 60)}) async {
+  final c = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+  try {
+    final req = await c.open(method, host, port, path).timeout(timeout);
+    if (token != null) req.headers.set('authorization', 'Bearer $token');
+    if (body != null) {
+      req.headers.contentType = ContentType.binary;
+      req.contentLength = body.length;
+      req.add(body);
+    }
+    final res = await req.close().timeout(timeout);
+    final out = <int>[];
+    await for (final chunk in res.timeout(timeout)) {
+      out.addAll(chunk);
+    }
+    return res.statusCode == 200 ? out : null;
+  } catch (_) {
+    return null;
+  } finally {
+    c.close(force: true);
+  }
+}
+
 Future<String> readBody(HttpRequest req) => utf8.decoder.bind(req).join();
 
 Future<void> sendJson(HttpRequest req, Object data, {int status = 200}) async {

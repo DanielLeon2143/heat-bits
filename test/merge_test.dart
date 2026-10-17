@@ -29,6 +29,37 @@ void main() {
     expect((m['todos'] as List).length, 1);
   });
 
+  test('notes: new notes from both devices are kept, and an edit on one side wins', () {
+    final base = {
+      'notes': [
+        {'id': 'n1', 'title': 'Plan', 'body': 'old', 'folder': ''}
+      ],
+      'noteFolders': []
+    };
+    final pc = {
+      'notes': [
+        {'id': 'n1', 'title': 'Plan', 'body': 'old', 'folder': ''},
+        {'id': 'n2', 'title': 'PC note', 'body': '', 'folder': 'h:walk'}
+      ],
+      'noteFolders': [
+        {'id': 'f1', 'name': 'Ideas', 'parent': ''}
+      ]
+    };
+    final phone = {
+      'notes': [
+        {'id': 'n1', 'title': 'Plan', 'body': 'new from phone', 'folder': 'f1'},
+        {'id': 'n3', 'title': 'Phone note', 'body': 'See [[Plan]]', 'folder': ''}
+      ],
+      'noteFolders': []
+    };
+    final m = merge3(base, pc, phone) as Map;
+    final notes = {for (final n in (m['notes'] as List).cast<Map>()) n['id']: n};
+    expect(notes.keys.toSet(), {'n1', 'n2', 'n3'});
+    expect(notes['n1']!['body'], 'new from phone');
+    expect(notes['n1']!['folder'], 'f1');
+    expect((m['noteFolders'] as List).length, 1);
+  });
+
   test('deleted on one side and untouched on the other stays deleted', () {
     final base = {'todos': [{'id': 'a'}, {'id': 'b'}]};
     final pc = {'todos': [{'id': 'a'}]};
@@ -133,5 +164,45 @@ void main() {
     final pcLater = {'settings': {'theme': 'paper', 'font': 'serif', 'sound': false}};
     final m = mergePrefs(first, pcLater, phoneLater);
     expect(m['settings'], {'theme': 'paper', 'font': 'serif', 'sound': true});
+  });
+
+  group('notes edited on both devices', () {
+    Map<String, dynamic> doc(List notes) => {'notes': notes};
+    final base = doc([
+      {'id': 'n1', 'title': 'Plan', 'body': 'a', 'folder': ''},
+      {'id': 'n2', 'title': 'Other', 'body': 'x', 'folder': ''},
+    ]);
+
+    test('the same text changed differently on both is a clash', () {
+      final pc = doc([{'id': 'n1', 'title': 'Plan', 'body': 'a + pc', 'folder': ''}, {'id': 'n2', 'title': 'Other', 'body': 'x', 'folder': ''}]);
+      final phone = doc([{'id': 'n1', 'title': 'Plan', 'body': 'a + phone', 'folder': ''}, {'id': 'n2', 'title': 'Other', 'body': 'x2', 'folder': ''}]);
+      final c = noteClashes(base, pc, phone);
+      expect(c.map((x) => x['id']), ['n1']); // n2 changed on the phone only
+      expect((c.first['pc'] as Map)['body'], 'a + pc');
+      expect((c.first['phone'] as Map)['body'], 'a + phone');
+    });
+
+    test('no clash: one side only, both the same, or different fields', () {
+      final pc = doc([{'id': 'n1', 'title': 'Plan', 'body': 'same', 'folder': ''}, {'id': 'n2', 'title': 'Renamed', 'body': 'x', 'folder': ''}]);
+      final phone = doc([{'id': 'n1', 'title': 'Plan', 'body': 'same', 'folder': ''}, {'id': 'n2', 'title': 'Other', 'body': 'x2', 'folder': ''}]);
+      expect(noteClashes(base, pc, phone), isEmpty);
+    });
+
+    test('a note new on both, or deleted on one side, is not a clash', () {
+      final pc = doc([{'id': 'n3', 'title': 'New', 'body': 'p'}]);
+      final phone = doc([{'id': 'n1', 'title': 'Plan', 'body': 'edited'}, {'id': 'n3', 'title': 'New', 'body': 'q'}]);
+      expect(noteClashes(base, pc, phone), isEmpty);
+    });
+
+    test('keepPcText keeps the PC text but still merges other changes', () {
+      final pc = doc([{'id': 'n1', 'title': 'Plan', 'body': 'a + pc', 'folder': ''}, {'id': 'n2', 'title': 'Other', 'body': 'x', 'folder': ''}]);
+      final phone = doc([{'id': 'n1', 'title': 'Plan', 'body': 'a + phone', 'folder': 'f1'}, {'id': 'n2', 'title': 'Other', 'body': 'x2', 'folder': ''}]);
+      final merged = asMap(merge3(base, pc, phone, preferB: true));
+      final kept = keepPcText(merged, base, noteClashes(base, pc, phone));
+      final notes = (kept['notes'] as List).cast<Map>();
+      expect(notes.firstWhere((n) => n['id'] == 'n1')['body'], 'a + pc');
+      expect(notes.firstWhere((n) => n['id'] == 'n1')['folder'], 'f1'); // the phone's move still comes through
+      expect(notes.firstWhere((n) => n['id'] == 'n2')['body'], 'x2');
+    });
   });
 }

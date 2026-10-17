@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'app_controller.dart';
+import 'files.dart';
 import 'merge.dart';
 import 'net_util.dart';
 
@@ -277,6 +278,7 @@ class SyncClient {
               if (first) 'drop': drop,
               'base': app.store.base ?? <String, dynamic>{},
               'doc': sent,
+              'caps': const ['noteClashes'], // this phone asks about notes changed differently on both
               if (sendPrefs) 'prefs': sentPrefs,
               if (sendPrefs && app.store.meta['prefsBase'] is Map) 'prefsBase': app.store.meta['prefsBase'],
             },
@@ -284,6 +286,7 @@ class SyncClient {
             timeout: const Duration(seconds: 15));
         final merged = syncPart(asMap(r['doc']));
         app.store.base = merged;
+        _keepNoteClashes(r['noteClashes']);
         if (first) app.store.meta.remove('firstDrop');
         // edits made on the phone while that request was in flight are layered on top
         final current = syncPart(app.store.local);
@@ -300,6 +303,7 @@ class SyncClient {
         }
         if (!deepEq(next, current) || nextPrefs != null) app.applyNetworkData(next, prefs: nextPrefs);
         if (!deepEq(next, merged)) _again = true; // still something the PC hasn't got
+        await _syncFiles(port, p['token'].toString(), r['files']);
         lastSync = DateTime.now().millisecondsSinceEpoch;
         app.store.meta['lastSync'] = lastSync;
         app.store.scheduleSave();
@@ -320,6 +324,29 @@ class SyncClient {
     } finally {
       _syncing = false;
       app.notifyStatus();
+    }
+  }
+
+  /// After a sync: send the PC the pictures only this phone has, and fetch the ones only the PC has.
+  /// [pcFiles] is the PC's list (an older PC sends none: then pictures just stay where they are).
+  Future<void> _syncFiles(int port, String token, Object? pcFiles) async {
+    if (pcFiles is! List || _host == null) return;
+    try {
+      final pc = pcFiles.map((e) => e.toString()).toSet();
+      final mine = await app.files.list();
+      final known = fileIdsIn(app.store.local);
+      for (final id in mine.difference(pc).intersection(known)) {
+        final bytes = await app.files.file(id).readAsBytes();
+        await httpBytes('POST', _host!, port, '/hb/file/${Uri.encodeComponent(id)}', body: bytes, token: token);
+      }
+      var got = false;
+      for (final id in known.difference(mine).intersection(pc)) {
+        final bytes = await httpBytes('GET', _host!, port, '/hb/file/${Uri.encodeComponent(id)}', token: token);
+        if (bytes != null && await app.files.save(id, Stream.value(bytes))) got = true;
+      }
+      if (got) app.filesArrived();
+    } catch (_) {
+      // pictures are best effort: the next sync tries again
     }
   }
 
@@ -352,6 +379,66 @@ class SyncClient {
     await wake();
   }
 
+  // ---------------- notes changed differently on both devices ----------------
+  // The PC kept its own text for those notes; this phone's version waits in meta['noteClashes']
+  // ({id: {id, pc, phone}}) until the user picks in the dialog (status.noteConflicts → the page).
+
+  Map<String, dynamic> get _noteClashes => asMap(app.store.meta['noteClashes']);
+
+  void _keepNoteClashes(Object? list) {
+    if (list is! List || list.isEmpty) return;
+    final all = _noteClashes;
+    for (final c in list.whereType<Map>()) {
+      final id = c['id']?.toString();
+      if (id != null) all[id] = {'id': id, 'pc': c['pc'], 'phone': c['phone']};
+    }
+    app.store.meta['noteClashes'] = all;
+    app.store.scheduleSave();
+  }
+
+  List<Map<String, dynamic>>? get noteConflicts {
+    final all = _noteClashes.values.map(asMap).toList();
+    return all.isEmpty ? null : all;
+  }
+
+  /// The user's picks: [{id, keep: "pc" | "phone" | "both"}]. "both" keeps the PC's and adds the
+  /// phone's as a new note next to it, "(phone)" after its title.
+  Future<void> resolveNotes(List choices) async {
+    final all = _noteClashes;
+    final notes = ((app.store.local['notes'] as List?) ?? const []).toList();
+    String norm(Object? t) => (t ?? '').toString().trim().toLowerCase();
+    for (final c in choices.whereType<Map>()) {
+      final id = c['id']?.toString();
+      final clash = asMap(all.remove(id));
+      final phone = asMap(clash['phone']);
+      if (id == null || phone.isEmpty) continue;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final i = notes.indexWhere((n) => n is Map && n['id']?.toString() == id);
+      if (c['keep'] == 'phone') {
+        final kept = {...(i == -1 ? phone : asMap(notes[i])), for (final k in noteTextKeys) if (phone.containsKey(k)) k: phone[k], 'updated': now};
+        if (i == -1) {
+          notes.add(kept);
+        } else {
+          notes[i] = kept;
+        }
+      } else if (c['keep'] == 'both') {
+        final base = '${(phone['title'] ?? 'Untitled').toString().trim()} (phone)';
+        var title = base;
+        for (var n = 2; notes.any((x) => x is Map && norm(x['title']) == norm(title)); n++) {
+          title = '$base $n';
+        }
+        notes.add({...phone, 'id': '${phone['id']}-${now.toRadixString(36)}', 'title': title, 'created': now, 'updated': now}
+          ..remove('habitNote')
+          ..remove('habitName'));
+      }
+    }
+    app.store.meta['noteClashes'] = all;
+    app.applyNetworkData({...syncPart(app.store.local), 'notes': notes});
+    await app.store.saveNow();
+    app.notifyStatus();
+    localChanged();
+  }
+
   void _dropConnection() {
     _host = null;
     connected = false;
@@ -368,5 +455,6 @@ class SyncClient {
         'lastSync': lastSync,
         'error': error,
         'conflicts': conflicts,
+        'noteConflicts': noteConflicts,
       };
 }

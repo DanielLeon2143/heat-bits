@@ -29,7 +29,91 @@ Future<void> main() async {
   final store = await Store.open();
   final app = AppController(store: store, isHost: !Platform.isAndroid, navKey: navKey);
   await app.start();
+  app.alerts.onAlarmOpened = (id, payload) => _showAlarm(app, id, payload);
   runApp(HeatBitsApp(app: app));
+  // opened by an alert (a ringing alarm on a locked phone, or Snooze on the PC)
+  WidgetsBinding.instance.addPostFrameCallback((_) => app.alerts.handleLaunch());
+}
+
+bool _alarmShowing = false;
+
+void _showAlarm(AppController app, int id, Map<String, dynamic> payload) {
+  final nav = navKey.currentState;
+  if (nav == null || _alarmShowing) return;
+  _alarmShowing = true;
+  nav
+      .push(MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => AlarmScreen(
+          title: (payload['t'] ?? 'Alarm').toString(),
+          body: (payload['b'] ?? '').toString(),
+          onStop: () => app.alerts.stop(id),
+          onSnooze: () async {
+            await app.alerts.stop(id);
+            await app.alerts.snooze(payload);
+          },
+        ),
+      ))
+      .whenComplete(() => _alarmShowing = false);
+}
+
+/// Shown over everything while an alarm rings on the phone.
+class AlarmScreen extends StatelessWidget {
+  const AlarmScreen({super.key, required this.title, required this.body, required this.onStop, required this.onSnooze});
+
+  final String title, body;
+  final Future<void> Function() onStop, onSnooze;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = TimeOfDay.now().format(context);
+    Future<void> act(Future<void> Function() f) async {
+      await f();
+      if (context.mounted) Navigator.of(context).pop();
+    }
+
+    return PopScope(
+      canPop: false, // back doesn't silence it: Stop or Snooze does
+      child: Scaffold(
+        backgroundColor: const Color(0xFF14161C),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              children: [
+                const Spacer(),
+                Text(now, style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.w300)),
+                const SizedBox(height: 16),
+                Text(title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w600)),
+                if (body.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                ],
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(onPressed: () => act(onStop), child: const Text('Stop', style: TextStyle(fontSize: 18))),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
+                    onPressed: () => act(onSnooze),
+                    child: const Text('Snooze 10 min', style: TextStyle(fontSize: 18)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class HeatBitsApp extends StatelessWidget {
@@ -63,7 +147,8 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
   InAppWebViewController? _web;
   bool _closing = false;
 
-  /// The Windows runner hands the window close to us first (tool/prepare.dart).
+  /// The Windows runner hands the window close to us first (tool/prepare.dart), and sends
+  /// the quick notes made with Ctrl+Shift+Q (tool/windows/hb_desktop.cpp).
   static const _window = MethodChannel('heatbits/window');
 
   @override
@@ -73,6 +158,12 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
     if (Platform.isWindows) {
       _window.setMethodCallHandler((call) async {
         if (call.method == 'close') await _close();
+        if (call.method == 'hotkey') await _quickNote(null, null);
+        if (call.method == 'folderPicked') widget.app.folderPicked(call.arguments?.toString());
+        if (call.method == 'quickNote') {
+          final a = call.arguments is Map ? call.arguments as Map : const {};
+          await _quickNote((a['title'] ?? '').toString(), (a['body'] ?? '').toString());
+        }
       });
     }
   }
@@ -90,6 +181,17 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
       widget.app.store.saveNow();
     }
+  }
+
+  /// Ctrl+Shift+Q: inside the app (title null) the page opens a new quick note; from the
+  /// popup the note is saved straight away, even with the window hidden in the tray.
+  Future<void> _quickNote(String? title, String? body) async {
+    try {
+      await _web?.callAsyncJavaScript(
+        functionBody: 'if (window.__hbQuickNote) window.__hbQuickNote(title, body); if (window.__hbFlush) await window.__hbFlush();',
+        arguments: {'title': title, 'body': body},
+      );
+    } catch (_) {}
   }
 
   /// The window is closing (PC). Collect the page's last edit and save, then take

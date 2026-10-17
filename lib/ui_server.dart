@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data' show BytesBuilder;
 
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show MethodChannel, rootBundle;
 
 import 'app_controller.dart';
 import 'merge.dart';
@@ -17,6 +18,11 @@ import 'store.dart';
 ///   POST /api/save         the page saved its data
 ///   GET  /api/sync/status  pairing / connection status for Settings → Devices & sync
 ///   POST /api/sync/resolve the user's picks for same-named habits before the first sync
+///   POST /api/alerts       the alarms/notifications this device should schedule (see alerts.dart)
+///   POST /api/desktop      PC: tray, global quick-note hotkey and the popup's colours (tool/windows/hb_desktop.cpp)
+///   POST /api/files?id=…   a picture for a note or canvas (raw bytes); `GET /files/ID?k=…` shows it
+///   /api/data/*            Settings → Data & storage: info, pick, check, move, open
+///   /api/vault/*           notes <-> Obsidian on the PC: read a picked vault, write into a picked folder
 ///   ...and the pairing buttons in that card (see _api below)
 ///
 /// Every /api call must carry the per-launch key, so other programs on the
@@ -66,6 +72,9 @@ class UiServer {
 
   void sendStatus(Map<String, dynamic> status) => _send('status', status);
 
+  /// New pictures are on this device (they came from the other one).
+  void sendFiles() => _send('files', {'at': DateTime.now().millisecondsSinceEpoch});
+
   void _send(String event, Object data) => _sendRaw('event: $event\ndata: ${jsonEncode(data)}\n\n');
 
   void _sendRaw(String msg) {
@@ -84,10 +93,15 @@ class UiServer {
       await _page(req);
       return;
     }
-    if (path.startsWith('/api/')) {
+    if (path.startsWith('/api/') || path.startsWith('/files/')) {
       final k = req.headers.value('x-hb-key') ?? req.uri.queryParameters['k'];
       if (k != key) {
         await sendJson(req, {'error': 'forbidden'}, status: 403);
+        return;
+      }
+      if (path.startsWith('/files/')) {
+        // a picture in a note or canvas (<img src="/files/<id>?k=…">)
+        await app.files.serve(req, Uri.decodeComponent(path.substring(7)));
         return;
       }
       await _api(req, path);
@@ -125,6 +139,14 @@ class UiServer {
     }
 
     switch (path) {
+      case '/api/files':
+        {
+          // a picture added to a note or canvas: the raw image is the body, its name is ?id=
+          final id = req.uri.queryParameters['id'] ?? '';
+          final ok = req.method == 'POST' && await app.files.save(id, req);
+          await sendJson(req, ok ? {'ok': true} : {'ok': false, 'error': "Couldn't save that picture."}, status: ok ? 200 : 400);
+          return;
+        }
       case '/api/events':
         {
           final res = req.response;
@@ -197,10 +219,112 @@ class UiServer {
           await sendJson(req, {'ok': true});
           return;
         }
+      case '/api/sync/notes':
+        {
+          // the user's picks for notes changed differently on both devices
+          final j = await readJson();
+          await app.client?.resolveNotes(j['choices'] is List ? j['choices'] as List : const []);
+          await sendJson(req, {'ok': true});
+          return;
+        }
       case '/api/pair/forget':
         await app.client?.unpair();
         await sendJson(req, {'ok': true});
         return;
+      case '/api/alerts':
+        {
+          // this device's alarms and notifications for the next two weeks, worked out by the page
+          final j = await readJson();
+          await sendJson(req, await app.alerts.apply(j['alerts'] is List ? j['alerts'] as List : const []));
+          return;
+        }
+      case '/api/desktop':
+        {
+          final j = await readJson();
+          if (Platform.isWindows) {
+            try {
+              await const MethodChannel('heatbits/window').invokeMethod<void>('settings', j);
+            } catch (_) {}
+          }
+          await sendJson(req, {'ok': true});
+          return;
+        }
+      case '/api/alerts/test':
+        {
+          final j = await readJson();
+          await app.alerts.test((j['kind'] ?? 'notify').toString());
+          await sendJson(req, {'ok': true});
+          return;
+        }
+      // Settings → Data & storage: where the data file and pictures are, and moving them (PC only)
+      case '/api/data/info':
+        await sendJson(req, await app.dataInfo());
+        return;
+      case '/api/data/pick':
+        {
+          final path = await app.pickFolder();
+          await sendJson(req, path == null ? {'ok': false} : {'ok': true, 'path': path});
+          return;
+        }
+      case '/api/data/check':
+        {
+          final j = await readJson();
+          await sendJson(req, await app.checkFolder((j['path'] ?? '').toString()));
+          return;
+        }
+      case '/api/data/move':
+        {
+          final j = await readJson();
+          await sendJson(req, await app.moveData((j['path'] ?? '').toString(), (j['mode'] ?? 'move').toString()));
+          return;
+        }
+      case '/api/data/open':
+        await app.openDataFolder();
+        await sendJson(req, {'ok': true});
+        return;
+      // notes <-> Obsidian: the page converts, the app reads the picked vault / writes the picked folder (PC)
+      case '/api/vault/read':
+        await sendJson(req, await app.pickVaultToRead());
+        return;
+      case '/api/vault/file':
+        {
+          final f = app.vaultFile(req.uri.queryParameters['path'] ?? '');
+          final res = req.response;
+          if (f == null || !await f.exists()) {
+            res.statusCode = 404;
+            await res.close();
+            return;
+          }
+          res.headers.contentType = ContentType.binary;
+          await res.addStream(f.openRead());
+          await res.close();
+          return;
+        }
+      case '/api/vault/out':
+        await sendJson(req, await app.pickVaultToWrite());
+        return;
+      case '/api/vault/write':
+        {
+          final q = req.uri.queryParameters;
+          final ok = req.method == 'POST' && await app.writeVaultFile(q['path'] ?? '', req, int.tryParse(q['modified'] ?? ''));
+          await sendJson(req, {'ok': ok});
+          return;
+        }
+      case '/api/export/bytes':
+        {
+          // an export that isn't text (the notes .zip): the raw file is the body, its name is ?name=
+          try {
+            final b = BytesBuilder(copy: false);
+            await for (final chunk in req) {
+              b.add(chunk);
+            }
+            final where = await app.exportBytes(req.uri.queryParameters['name'] ?? 'heat-bits.zip', b.takeBytes());
+            await sendJson(req, {'ok': true, 'path': where});
+          } catch (e) {
+            await sendJson(req, {'ok': false, 'error': e.toString()});
+          }
+          return;
+        }
       case '/api/export':
         {
           final j = await readJson();

@@ -5,7 +5,7 @@
 No account, no cloud, no subscription. Your data lives on your own PC and phone, and they talk to each other
 directly on your network.
 
-**[⬇ Download the latest version](https://github.com/DanielLeon2143/heat-bits/releases/latest)**:
+**[Download the latest version](https://github.com/DanielLeon2143/heat-bits/releases/latest)**:
 `Heat-Bits-Windows.zip` for the PC, `Heat-Bits.apk` for an Android phone.
 
 ---
@@ -19,6 +19,16 @@ directly on your network.
 - **To-dos.** A task list next to your week, so today's plans and today's habits are in one place.
 - **Trackers and graphs.** See how each habit is going over weeks and months.
 - **Reminders** for things that come back regularly, like bills or appointments.
+- **Notes.** Markdown notes like Obsidian. Every habit and tracker has its own folder, and you can add your own
+  folders and notes. Link notes with `[[Note name]]` and click a link to jump to it. Sort by name, date, or your
+  own order (just drag). **Canvases** are boards for laying out notes and text cards and connecting them with arrows.
+  Add **pictures** to notes and canvases: with the button, by pasting, or by dropping them in.
+- **Alarms and notifications.** Set alarms in Settings → Alarms, or an alert on any to-do, activity, habit or
+  reminder (double-click it on the week calendar). Each one rings on the PC, the phone or both, even when
+  Heat-Bits is closed. An alarm keeps ringing until you stop or snooze it.
+- **Runs in the background (PC).** Closing the window keeps Heat-Bits in the tray, next to the clock, like Discord. Click the
+  icon to open it again, or right-click it and choose **Quit**. Press **Ctrl+Shift+Q** in any program to jot a quick note in
+  a small box. Type a title and press Enter, then type the note and press Enter again. Both can be turned off in Settings → Layout.
 - **Make it yours.** Themes, colours, fonts and layout, set separately on each device.
 - **Backups.** Export everything to a file and import it again whenever you like.
 
@@ -28,7 +38,11 @@ directly on your network.
 - After that, tick a habit on either one and it shows up on the other within a second or two.
 - The phone works offline too. Changes are kept and sent the next time it's on the same Wi-Fi as the PC.
 - Edits made on both at once are merged item by item, so nothing gets overwritten.
-- Habits, to-dos, activities and reminders sync. Settings (theme, font, layout) stay separate on each device.
+- Habits, to-dos, activities, reminders, alarms and notes sync. Settings (theme, font, layout) stay separate on each device.
+- If the same note is changed on both devices before they sync, the most recent copy to arrive wins.
+- Pictures are copied to the other device once, right after a sync. Big photos are made smaller (2000 pixels on the
+  longest side) when you add them. Export / import backs up your notes but not the pictures themselves.
+- An alarm set on the PC reaches the phone the next time the phone syncs (when Heat-Bits is open on it).
 - Nothing leaves your home network. There's no server on the internet.
 
 ---
@@ -67,7 +81,8 @@ After pairing:
 - The phone finds the PC again by itself, even if the PC's address changes.
 - **Settings → Devices & sync** shows whether they're connected, has a **Sync now** button, and lets you
   remove a phone (on the PC) or unpair (on the phone).
-- Heat-Bits has to be open on the PC for syncing to happen. Close it any time. The phone catches up later.
+- Heat-Bits has to be running on the PC for syncing to happen. Closing the window leaves it running in the tray. If you
+  quit it, the phone catches up later.
 
 ### Updating
 
@@ -116,6 +131,8 @@ the Wi-Fi sync.
 | `lib/sync_client.dart` | Phone: finds the PC, keeps a live connection, syncs, works offline |
 | `lib/merge.dart` | The three-way merge that keeps edits from both devices |
 | `lib/store.dart` | Saves everything to one JSON file in the app's data folder |
+| `lib/files.dart` | Pictures in notes and canvases, kept as files next to the data and copied between devices |
+| `lib/alerts.dart` | Alarms and notifications, scheduled with the system so they ring when the app is closed |
 | `tool/prepare.dart` | Patches the generated `android/` and `windows/` folders (permissions, app name, fixes) |
 
 ### Building
