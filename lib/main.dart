@@ -148,7 +148,7 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
   bool _closing = false;
 
   /// The Windows runner hands the window close to us first (tool/prepare.dart), and sends
-  /// the quick notes made with Ctrl+Shift+Q (tool/windows/hb_desktop.cpp).
+  /// the quick notes and to-dos made with Ctrl+Shift+Q / Ctrl+Alt+T (tool/windows/hb_desktop.cpp).
   static const _window = MethodChannel('heatbits/window');
 
   @override
@@ -160,6 +160,10 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
         if (call.method == 'close') await _close();
         if (call.method == 'hotkey') await _quickNote(null, null);
         if (call.method == 'folderPicked') widget.app.folderPicked(call.arguments?.toString());
+        if (call.method == 'quickTodo') {
+          final a = call.arguments is Map ? call.arguments as Map : const {};
+          await _quickTodo((a['text'] ?? '').toString());
+        }
         if (call.method == 'quickNote') {
           final a = call.arguments is Map ? call.arguments as Map : const {};
           await _quickNote((a['title'] ?? '').toString(), (a['body'] ?? '').toString());
@@ -190,6 +194,16 @@ class _WebHomeState extends State<WebHome> with WidgetsBindingObserver {
       await _web?.callAsyncJavaScript(
         functionBody: 'if (window.__hbQuickNote) window.__hbQuickNote(title, body); if (window.__hbFlush) await window.__hbFlush();',
         arguments: {'title': title, 'body': body},
+      );
+    } catch (_) {}
+  }
+
+  /// Ctrl+Alt+T: the popup's to-do goes straight on the list, even with the window hidden in the tray.
+  Future<void> _quickTodo(String text) async {
+    try {
+      await _web?.callAsyncJavaScript(
+        functionBody: 'if (window.__hbQuickTodo) window.__hbQuickTodo(text); if (window.__hbFlush) await window.__hbFlush();',
+        arguments: {'text': text},
       );
     } catch (_) {}
   }

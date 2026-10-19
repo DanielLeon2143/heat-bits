@@ -16,6 +16,9 @@ import 'merge.dart';
 /// The file lives in the app support dir unless the user picked another folder in
 /// Settings → Data & storage. That choice is kept in `data-folder.txt` in the app support dir,
 /// because it has to be read before the data file can be found.
+///
+/// Once a day the file is copied to `backups/heatbits-<date>.json` next to it (the last
+/// [keepBackups] days are kept), so a bad sync or a slip can be undone by hand.
 class Store {
   Store._(this.file);
 
@@ -27,12 +30,14 @@ class Store {
 
   Timer? _timer;
   bool _writing = false, _again = false;
+  String? _backupDay;
 
   /// Set when the chosen folder couldn't be reached at start (a USB drive that's out, say),
   /// so the data is in the app's own folder for now. Shown in Settings → Data & storage.
   String? folderProblem;
 
   static const fileName = 'heatbits.json';
+  static const keepBackups = 7;
 
   Directory get dir => file.parent;
 
@@ -61,7 +66,10 @@ class Store {
     } catch (_) {}
     final s = Store._(fileIn(dir))..folderProblem = problem;
     try {
-      if (await s.file.exists()) s._apply(await readFile(s.file));
+      if (await s.file.exists()) {
+        s._apply(await readFile(s.file));
+        await s._backupIfDue(); // only a file that reads fine is worth keeping
+      }
     } catch (_) {
       // unreadable file: keep a copy instead of silently losing it
       try {
@@ -119,6 +127,13 @@ class Store {
     }
   }
 
+  Future<void> _backupIfDue() async {
+    final now = DateTime.now(), day = dayKey(now);
+    if (_backupDay == day) return;
+    _backupDay = day;
+    await backup(file, now);
+  }
+
   void scheduleSave() {
     _timer?.cancel();
     _timer = Timer(const Duration(milliseconds: 300), saveNow);
@@ -132,6 +147,8 @@ class Store {
     }
     _writing = true;
     try {
+      // the PC can stay open for days in the tray, so check again on the first save of each day
+      await _backupIfDue();
       do {
         _again = false;
         final text = jsonEncode({'local': local, 'base': base, 'version': version, 'meta': meta});
@@ -150,6 +167,32 @@ class Store {
       _writing = false;
     }
   }
+}
+
+String dayKey(DateTime t) =>
+    '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+
+/// Copies [f] to `backups/heatbits-<day>.json` next to it, unless today's copy is already
+/// there, then deletes all but the newest [keep]. Best effort: a failed backup never stops a save.
+Future<void> backup(File f, DateTime now, {int keep = Store.keepBackups}) async {
+  try {
+    if (!await f.exists()) return;
+    final dir = Directory('${f.parent.path}${Platform.pathSeparator}backups');
+    await dir.create(recursive: true);
+    final today = File('${dir.path}${Platform.pathSeparator}heatbits-${dayKey(now)}.json');
+    if (!await today.exists()) await f.copy(today.path);
+    final name = RegExp(r'^heatbits-\d{4}-\d{2}-\d{2}\.json$');
+    final old = <File>[];
+    await for (final e in dir.list()) {
+      if (e is File && name.hasMatch(e.uri.pathSegments.last)) old.add(e);
+    }
+    old.sort((a, b) => b.path.compareTo(a.path)); // the date sorts as text, newest first
+    for (final x in old.skip(keep)) {
+      try {
+        await x.delete();
+      } catch (_) {}
+    }
+  } catch (_) {}
 }
 
 /// Same folder, ignoring slash style, a trailing slash and (on Windows) case.

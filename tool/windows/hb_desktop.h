@@ -1,5 +1,5 @@
 // Heat-Bits on the PC: tray icon (closing the window keeps the app running), the
-// Ctrl+Shift+Q hotkey from any program, and the small quick-note popup it opens.
+// Ctrl+Shift+Q (quick note) and Ctrl+Alt+T (to-do) hotkeys from any program, and the small popup they open.
 // tool/prepare.dart copies this into windows/runner and hooks it into flutter_window.cpp.
 #pragma once
 
@@ -11,7 +11,8 @@
 #include <optional>
 #include <string>
 
-// `channel` is "heatbits/window". Sends the app "quickNote" {title, body} and "hotkey" (pressed inside the app).
+// `channel` is "heatbits/window". Sends the app "quickNote" {title, body}, "quickTodo" {text}
+// and "hotkey" (Ctrl+Shift+Q pressed inside the app).
 void HbDesktopInit(HWND main, flutter::MethodChannel<flutter::EncodableValue>* channel);
 
 // Calls from the app: "settings" {closeToTray, hotkey, bg, surface, ink, inkSoft, border, accent, font}, "show",

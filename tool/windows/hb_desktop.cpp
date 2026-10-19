@@ -15,8 +15,8 @@ using flutter::EncodableValue;
 
 const UINT kTrayMsg = WM_APP + 0x48;
 const UINT kTrayId = 1;
-const int kHotkeyId = 0x4851;
-const UINT kMenuOpen = 1, kMenuNote = 2, kMenuQuit = 3;
+const int kHotkeyId = 0x4851, kTodoHotkeyId = 0x4852;
+const UINT kMenuOpen = 1, kMenuNote = 2, kMenuQuit = 3, kMenuTodo = 4;
 const wchar_t kPopupClass[] = L"HeatBitsQuickNote";
 
 HWND g_main = nullptr;
@@ -24,7 +24,7 @@ flutter::MethodChannel<EncodableValue>* g_channel = nullptr;
 UINT g_taskbarCreated = 0, g_showMsg = 0;
 
 bool g_closeToTray = true, g_hotkeyOn = true;
-bool g_trayAdded = false, g_hotkeyAdded = false, g_quitting = false;
+bool g_trayAdded = false, g_hotkeyAdded = false, g_todoHotkeyAdded = false, g_quitting = false;
 
 // the page's theme (Settings -> Appearance), sent by the app whenever it changes
 COLORREF g_surface = RGB(0x1D, 0x1D, 0x1D), g_field = RGB(0x15, 0x15, 0x15), g_ink = RGB(0xEC, 0xEC, 0xEC),
@@ -37,6 +37,7 @@ WNDPROC g_editProc = nullptr;
 HFONT g_fHead = nullptr, g_fText = nullptr, g_fSmall = nullptr;
 HBRUSH g_fieldBrush = nullptr;
 bool g_popupClosing = false, g_paintBorder = false;
+bool g_todoMode = false;  // the popup is "New to-do" (one line, Ctrl+Alt+T) instead of "Quick note"
 RECT g_titleBox{}, g_bodyBox{};
 int g_dpi = 96;
 
@@ -127,6 +128,13 @@ void UpdateHotkey() {
     UnregisterHotKey(g_main, kHotkeyId);
     g_hotkeyAdded = false;
   }
+  // Ctrl+Alt+T, not Ctrl+Shift+T: a hotkey takes the keys from every program, and browsers use that one
+  if (g_hotkeyOn && !g_todoHotkeyAdded) {
+    g_todoHotkeyAdded = RegisterHotKey(g_main, kTodoHotkeyId, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'T') != 0;
+  } else if (!g_hotkeyOn && g_todoHotkeyAdded) {
+    UnregisterHotKey(g_main, kTodoHotkeyId);
+    g_todoHotkeyAdded = false;
+  }
 }
 
 // Windows only lets the program the user is busy with bring a window forward; borrow its input queue
@@ -148,12 +156,13 @@ void ShowMain() {
   ForceForeground(g_main);
 }
 
-void ShowPopup();
+void ShowPopup(bool todo);
 
 void TrayMenu() {
   HMENU menu = CreatePopupMenu();
   AppendMenuW(menu, MF_STRING, kMenuOpen, L"Open Heat-Bits");
   AppendMenuW(menu, MF_STRING, kMenuNote, g_hotkeyAdded ? L"New quick note\tCtrl+Shift+Q" : L"New quick note");
+  AppendMenuW(menu, MF_STRING, kMenuTodo, g_todoHotkeyAdded ? L"New to-do\tCtrl+Alt+T" : L"New to-do");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, kMenuQuit, L"Quit Heat-Bits");
   SetMenuDefaultItem(menu, kMenuOpen, FALSE);
@@ -164,7 +173,8 @@ void TrayMenu() {
   PostMessageW(g_main, WM_NULL, 0, 0);
   DestroyMenu(menu);
   if (cmd == kMenuOpen) ShowMain();
-  if (cmd == kMenuNote) ShowPopup();
+  if (cmd == kMenuNote) ShowPopup(false);
+  if (cmd == kMenuTodo) ShowPopup(true);
   if (cmd == kMenuQuit) {
     g_quitting = true;
     PostMessageW(g_main, WM_CLOSE, 0, 0);  // the normal close: the app saves first
@@ -174,6 +184,7 @@ void TrayMenu() {
 // ---- the quick-note popup ----
 
 std::wstring TextOf(HWND edit) {
+  if (!edit) return L"";
   int n = GetWindowTextLengthW(edit);
   std::wstring w(n + 1, L'\0');
   GetWindowTextW(edit, w.data(), n + 1);
@@ -198,7 +209,13 @@ void FreePopupGdi() {
 void ClosePopup(bool save) {
   if (!g_popup || g_popupClosing) return;
   g_popupClosing = true;
-  if (save && g_channel) {
+  if (save && g_channel && g_todoMode) {
+    std::wstring text = Trimmed(TextOf(g_title));
+    if (!text.empty())
+      g_channel->InvokeMethod("quickTodo", std::make_unique<EncodableValue>(EncodableMap{
+                                               {EncodableValue("text"), EncodableValue(Narrow(text))},
+                                           }));
+  } else if (save && g_channel) {
     std::wstring title = Trimmed(TextOf(g_title)), body = TextOf(g_body), clean;
     for (wchar_t c : body)
       if (c != L'\r') clean += c;  // the edit box writes \r\n; notes use \n
@@ -226,12 +243,12 @@ LRESULT CALLBACK EditProc(HWND h, UINT m, WPARAM w, LPARAM l) {
       return 0;
     }
     if (w == VK_RETURN && !(body && shift)) {
-      if (body) ClosePopup(true);
+      if (body || g_todoMode) ClosePopup(true);
       else SetFocus(g_body);  // Enter in the title goes on to the note
       return 0;
     }
     if (w == VK_TAB) {
-      SetFocus(body ? g_title : g_body);
+      if (!g_todoMode) SetFocus(body ? g_title : g_body);
       return 0;
     }
     if (ctrl && w == 'A') {
@@ -276,22 +293,25 @@ void PaintPopup(HWND hwnd) {
   SelectObject(mem, g_fHead);
   SetTextColor(mem, g_ink);
   RECT head{pad + S(18), S(20), rc.right - pad, S(50)};
-  DrawTextW(mem, L"Quick note", -1, &head, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
+  DrawTextW(mem, g_todoMode ? L"New to-do" : L"Quick note", -1, &head, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
 
   SelectObject(mem, g_fSmall);
   SetTextColor(mem, g_soft);
   RECT lt{pad, g_titleBox.top - S(22), rc.right - pad, g_titleBox.top - S(4)};
-  DrawTextW(mem, L"Title", -1, &lt, DT_SINGLELINE | DT_BOTTOM | DT_LEFT);
-  RECT lb{pad, g_bodyBox.top - S(22), rc.right - pad, g_bodyBox.top - S(4)};
-  DrawTextW(mem, L"Note", -1, &lb, DT_SINGLELINE | DT_BOTTOM | DT_LEFT);
-  RECT foot{pad, g_bodyBox.bottom + S(8), rc.right - pad, rc.bottom - S(8)};
-  DrawTextW(mem, L"Enter saves  \u00B7  Shift+Enter new line  \u00B7  Esc cancels", -1, &foot,
-            DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+  DrawTextW(mem, g_todoMode ? L"To-do" : L"Title", -1, &lt, DT_SINGLELINE | DT_BOTTOM | DT_LEFT);
+  if (!g_todoMode) {
+    RECT lb{pad, g_bodyBox.top - S(22), rc.right - pad, g_bodyBox.top - S(4)};
+    DrawTextW(mem, L"Note", -1, &lb, DT_SINGLELINE | DT_BOTTOM | DT_LEFT);
+  }
+  RECT foot{pad, (g_todoMode ? g_titleBox : g_bodyBox).bottom + S(8), rc.right - pad, rc.bottom - S(8)};
+  DrawTextW(mem, g_todoMode ? L"Enter adds it to your to-dos  \u00B7  Esc cancels"
+                            : L"Enter saves  \u00B7  Shift+Enter new line  \u00B7  Esc cancels",
+            -1, &foot, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
 
   HWND focus = GetFocus();
   HBRUSH field = CreateSolidBrush(g_field);
   SelectObject(mem, field);
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < (g_todoMode ? 1 : 2); i++) {
     const RECT& b = i == 0 ? g_titleBox : g_bodyBox;
     bool on = focus == (i == 0 ? g_title : g_body);
     HPEN pen = CreatePen(PS_SOLID, on ? S(2) : 1, on ? g_accent : g_border);
@@ -360,12 +380,15 @@ LRESULT CALLBACK PopupProc(HWND hwnd, UINT m, WPARAM w, LPARAM l) {
   return DefWindowProcW(hwnd, m, w, l);
 }
 
-void ShowPopup() {
+void ShowPopup(bool todo) {
+  // the other popup is open: swap it if it's empty, otherwise keep what's being written
+  if (g_popup && g_todoMode != todo && TextOf(g_title).empty() && TextOf(g_body).empty()) ClosePopup(false);
   if (g_popup) {
     ForceForeground(g_popup);
     SetFocus(g_title);
     return;
   }
+  g_todoMode = todo;
   HINSTANCE inst = GetModuleHandleW(nullptr);
   static bool registered = false;
   if (!registered) {
@@ -384,12 +407,12 @@ void ShowPopup() {
   MONITORINFO mi{sizeof(mi)};
   GetMonitorInfoW(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), &mi);
   RECT work = mi.rcWork;
-  g_popup = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, kPopupClass, L"Quick note", WS_POPUP, work.left,
+  g_popup = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, kPopupClass, todo ? L"New to-do" : L"Quick note", WS_POPUP, work.left,
                             work.top, 100, 100, nullptr, nullptr, inst, nullptr);
   if (!g_popup) return;
   g_dpi = (int)GetDpiForWindow(g_popup);
   if (g_dpi <= 0) g_dpi = 96;
-  int w = S(460), h = S(460);
+  int w = S(460), h = todo ? S(200) : S(460);
   SetWindowPos(g_popup, HWND_TOPMOST, work.left + (work.right - work.left - w) / 2,
                work.top + (work.bottom - work.top - h) / 2, w, h, SWP_NOACTIVATE);
 
@@ -410,15 +433,17 @@ void ShowPopup() {
   g_title = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, g_titleBox.left + in,
                             g_titleBox.top + (S(42) - lineH) / 2, g_titleBox.right - g_titleBox.left - 2 * in, lineH,
                             g_popup, nullptr, inst, nullptr);
-  g_body = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL,
-                           g_bodyBox.left + in, g_bodyBox.top + S(10), g_bodyBox.right - g_bodyBox.left - 2 * in,
-                           g_bodyBox.bottom - g_bodyBox.top - S(20), g_popup, nullptr, inst, nullptr);
+  if (!todo)
+    g_body = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL,
+                             g_bodyBox.left + in, g_bodyBox.top + S(10), g_bodyBox.right - g_bodyBox.left - 2 * in,
+                             g_bodyBox.bottom - g_bodyBox.top - S(20), g_popup, nullptr, inst, nullptr);
   for (HWND e : {g_title, g_body}) {
+    if (!e) continue;
     SendMessageW(e, WM_SETFONT, (WPARAM)g_fText, TRUE);
     SendMessageW(e, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, 0);
     g_editProc = (WNDPROC)SetWindowLongPtrW(e, GWLP_WNDPROC, (LONG_PTR)EditProc);
   }
-  SendMessageW(g_title, EM_SETLIMITTEXT, 200, 0);
+  SendMessageW(g_title, EM_SETLIMITTEXT, todo ? 500 : 200, 0);
 
   // Windows 11: round corners and a border in the app colour
   DWORD round = 2;  // DWMWCP_ROUND
@@ -433,7 +458,7 @@ void ShowPopup() {
 
 void OnHotkey() {
   if (g_popup) {
-    ShowPopup();
+    ShowPopup(false);
     return;
   }
   // inside Heat-Bits the page makes the note itself, as before; anywhere else, the popup
@@ -441,7 +466,7 @@ void OnHotkey() {
   if (g_channel && fg && IsWindowVisible(g_main) && GetAncestor(fg, GA_ROOTOWNER) == g_main) {
     g_channel->InvokeMethod("hotkey", nullptr);
   } else {
-    ShowPopup();
+    ShowPopup(false);
   }
 }
 
@@ -540,6 +565,10 @@ std::optional<LRESULT> HbDesktopMessage(HWND hwnd, UINT message, WPARAM wparam, 
     OnHotkey();
     return 0;
   }
+  if (message == WM_HOTKEY && wparam == kTodoHotkeyId) {  // the same popup inside Heat-Bits and over other programs
+    ShowPopup(true);
+    return 0;
+  }
   if (message == kTrayMsg) {
     switch (LOWORD(lparam)) {
       case NIN_SELECT:
@@ -568,6 +597,7 @@ void HbDesktopShutdown() {
   if (g_popup) ClosePopup(false);
   RemoveTray();
   if (g_hotkeyAdded) UnregisterHotKey(g_main, kHotkeyId);
-  g_hotkeyAdded = false;
+  if (g_todoHotkeyAdded) UnregisterHotKey(g_main, kTodoHotkeyId);
+  g_hotkeyAdded = g_todoHotkeyAdded = false;
   g_channel = nullptr;
 }

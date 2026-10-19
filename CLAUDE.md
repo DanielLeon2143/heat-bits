@@ -25,7 +25,7 @@ page (InAppWebView) <-> UiServer <-> AppController <-> SyncHost (PC) | SyncClien
 | `lib/sync_host.dart` | PC: `GET /hb/hello`, `POST /hb/pair` (6-char code → token), `POST /hb/sync` (Bearer token, 3-way merge), `GET /hb/ws` (pushes `{"type":"changed"}`), UDP discovery reply. |
 | `lib/sync_client.dart` | Phone: pairing (QR or manual), finds the PC (last host → known hosts → UDP broadcast), WebSocket with backoff (5s→60s), debounced sync (700 ms), offline-first. |
 | `lib/merge.dart` | `merge3(base, a, b)`, `deepEq`, `syncKeys`, `syncPart`. Pure Dart, so it's the main unit-test target. |
-| `lib/store.dart` | One JSON file `heatbits.json`: `{local, base, version, meta}`. Saves are debounced (300 ms) and atomic (`.tmp` + rename). An unreadable file is kept as `.broken-<ts>`. It lives in the app support dir unless `data-folder.txt` there names another folder (Settings → **Data & storage** `#dataCard`, PC only: `AppController.checkFolder` / `moveData`, `/api/data/*`, native picker `pickFolder` → `folderPicked` in hb_desktop.cpp). Moving copies heatbits.json + `attachments/` and leaves the old copy; "use" loads the file already there but keeps this device's `meta` (pairing), and the page reloads. A missing custom folder falls back to the default with `store.folderProblem`. |
+| `lib/store.dart` | One JSON file `heatbits.json`: `{local, base, version, meta}`. Saves are debounced (300 ms) and atomic (`.tmp` + rename). An unreadable file is kept as `.broken-<ts>`. Once a day (at start, and on the first save of a new day) it's copied to `backups/heatbits-<YYYY-MM-DD>.json` next to it; the newest 7 are kept (`backup()`, tested in `test/store_test.dart`). It lives in the app support dir unless `data-folder.txt` there names another folder (Settings → **Data & storage** `#dataCard`, PC only: `AppController.checkFolder` / `moveData`, `/api/data/*`, native picker `pickFolder` → `folderPicked` in hb_desktop.cpp). Moving copies heatbits.json + `attachments/` and leaves the old copy; "use" loads the file already there but keeps this device's `meta` (pairing), and the page reloads. A missing custom folder falls back to the default with `store.folderProblem`. |
 | `lib/net_util.dart` | Ports, `localAddresses()` (skips virtual adapters), `httpJson`, `discoverHost`. |
 | `lib/qr_svg.dart` | Pairing QR as SVG (served at `/api/pair/qr.svg`). |
 | `lib/files.dart` | Pictures in notes/canvases: `Attachments` keeps them in `attachments/` next to heatbits.json (`save`, `serve`, `list`, `validId`). |
@@ -157,6 +157,9 @@ Section `notes` in index.html: Markdown notes like Obsidian (page `NOTES`, sideb
   Otherwise it opens the popup (a plain Win32 window with two EDIT controls, topmost, centred on the pointer's screen).
   Enter in the note sends `quickNote` {title, body}, and `__hbQuickNote(title, body)` adds the note to `quick` without
   opening it. That works with the window hidden, because the web view stays alive.
+- `RegisterHotKey` Ctrl+Alt+T (same `globalHotkey` switch) opens that popup as **New to-do**: one line, in and out of the app.
+  Enter sends `quickTodo` {text}, and `window.__hbQuickTodo(text)` pushes it onto `state.todos`. Not Ctrl+Shift+T, because
+  a hotkey takes the keys from every program and browsers use that one for reopening a tab.
 - The page sends `/api/desktop` {closeToTray, hotkey, colours, font} (`hbSendDesktop`, after `saveState` and `applySettings`,
   only when it changed). `ui_server.dart` passes it to the runner as `settings`. Web fonts that Windows lacks fall back to Segoe UI.
 

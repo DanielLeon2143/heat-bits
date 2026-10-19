@@ -1600,6 +1600,9 @@
   .week-trackers-inner::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .week-trackers-inner .section-head { margin-bottom: 0; }
   .wt-head { align-items: center; gap: 10px; }
+  .wt-picks { display: flex; gap: 6px; min-width: 0; max-width: 75%; justify-content: flex-end; }
+  .wt-picks .wt-select { max-width: none; }
+  .wt-reset { flex: none; }
   .wt-select { margin: 0; width: auto; min-width: 0; max-width: 60%; flex: 0 1 auto; padding: 4px 8px; font-size: calc(12.5px * var(--fs, 1)); }
   .wt-list { display: flex; flex-direction: column; gap: 8px; }
   .wt-row { display: flex; align-items: center; gap: 10px; }
@@ -5983,7 +5986,7 @@
       (hbIsWindowsApp() ? '<div class="graph-card settings-card" id="desktopCard" data-keywords="behavior behaviour windows pc app tray background close quit hotkey shortcut ctrl shift q quick note popup">' +
         '<div class="graph-head"><span class="graph-name">Behavior</span></div>' +
         toggleRow("setCloseToTray", "Keep running when closed", "The X hides Heat-Bits in the tray (by the clock) instead of quitting, so alarms, sync and the quick-note shortcut keep working. Click the tray icon to open it again; right-click it to quit.", setting("closeToTray", true) !== false) +
-          toggleRow("setGlobalHotkey", "Quick note from any program", "Ctrl+Shift+Q opens a small quick-note box over whatever you're doing. Type a title, press Enter, write the note and press Enter again to save it in Quick notes.", setting("globalHotkey", true) !== false) +
+          toggleRow("setGlobalHotkey", "Quick note and to-do from any program", "Ctrl+Shift+Q opens a small quick-note box over whatever you're doing. Type a title, press Enter, write the note and press Enter again to save it in Quick notes. Ctrl+Alt+T opens a to-do box: type it and press Enter to add it to your to-dos.", setting("globalHotkey", true) !== false) +
       '</div>' : '') +
 
       (HB ? '<div class="graph-card settings-card" id="dataCard" data-keywords="data storage folder location move files pictures backup"></div>' : '') +
@@ -6403,16 +6406,37 @@
   dayModalBackdrop.addEventListener("click", function (e) { if (e.target === dayModalBackdrop) closeDayModal(); });
 
   // ---------------- This Week: Trackers panel ----------------
-  // completions of a tracker during the calendar week that contains today
-  function trackerWeekCount(tracker) {
-    var start = startOfWeek(todayKey());
-    var today0 = startOfToday();
-    var count = 0;
-    for (var i = 0; i < 7; i++) {
-      var d = new Date(start.getTime() + i * DAY_MS);
-      if (d <= today0 && isDone(tracker, dateKey(d))) count++;
-    }
-    return count;
+  // When the panel's count starts again (state.weekTrackerReset, per device). Only the count resets: completions stay.
+  var WT_RESETS = [["day", "Daily", "today"], ["week", "Weekly", "this week"], ["month", "Monthly", "this month"],
+    ["year", "Yearly", "this year"], ["never", "Never", "so far"]];
+  function trackerReset() {
+    var r = WT_RESETS.filter(function (x) { return x[0] === state.weekTrackerReset; })[0];
+    return r || WT_RESETS[1];
+  }
+  // {from, to}: the dates counted (from = null means all time) and the whole period's last day, for the shading
+  function trackerPeriod(mode) {
+    var t = startOfToday(), y = t.getFullYear(), m = t.getMonth();
+    if (mode === "day") return { from: t, end: t };
+    if (mode === "month") return { from: new Date(y, m, 1), end: new Date(y, m + 1, 0) };
+    if (mode === "year") return { from: new Date(y, 0, 1), end: new Date(y, 11, 31) };
+    if (mode === "never") return { from: null, end: t };
+    var s = startOfWeek(todayKey());
+    return { from: s, end: new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6) };
+  }
+  function scheduledBetween(tracker, from, end) {
+    var days = habitDays(tracker), n = 0;
+    for (var d = new Date(from); d <= end; d.setDate(d.getDate() + 1)) if (days.indexOf(d.getDay()) !== -1) n++;
+    return n;
+  }
+  // {count, scheduled}: days done since the last reset, and days the tracker is due in the whole period
+  function trackerPeriodCount(tracker, mode) {
+    var p = trackerPeriod(mode), today = todayKey(), count = 0, first = null;
+    var fromKey = p.from ? dateKey(p.from) : "";
+    Object.keys(tracker.completions || {}).forEach(function (k) {
+      if (k >= fromKey && k <= today && isDone(tracker, k)) { count++; if (!first || k < first) first = k; }
+    });
+    var from = p.from || (first ? new Date(first + "T00:00:00") : p.end);
+    return { count: count, scheduled: Math.max(1, scheduledBetween(tracker, from, p.end)) };
   }
 
   function weekTrackerHabit() {
@@ -6455,7 +6479,25 @@
       saveState();
       renderWeekTrackersPanel();
     });
-    panel.querySelector(".wt-head").appendChild(select);
+    var reset = document.createElement("select");
+    reset.className = "field wt-select wt-reset";
+    reset.title = "When the count starts again (what you've done is kept)";
+    WT_RESETS.forEach(function (r) {
+      var o = document.createElement("option");
+      o.value = r[0]; o.textContent = r[0] === "never" ? "No reset" : r[1];
+      if (r[0] === trackerReset()[0]) o.selected = true;
+      reset.appendChild(o);
+    });
+    reset.addEventListener("change", function () {
+      state.weekTrackerReset = reset.value;
+      saveState();
+      renderWeekTrackersPanel();
+    });
+    var picks = document.createElement("span");
+    picks.className = "wt-picks";
+    picks.appendChild(select);
+    picks.appendChild(reset);
+    panel.querySelector(".wt-head").appendChild(picks);
 
     var list = document.createElement("div");
     list.className = "wt-list";
@@ -6468,10 +6510,12 @@
     }
 
     var todayKeyStr = todayKey();
+    var resetMode = trackerReset();
     trackers.forEach(function (st) {
       var measurable = st.type === "measurable";
-      var count = trackerWeekCount(st);
-      var scheduled = Math.max(1, habitDays(st).length);
+      var pc = trackerPeriodCount(st, resetMode[0]);
+      var count = pc.count;
+      var scheduled = pc.scheduled;
       var frac = Math.min(1, count / scheduled);
       var pct = Math.round(12 + 88 * frac);
       var col = habit.color;
@@ -6486,8 +6530,8 @@
       var sq = row.querySelector(".wt-square");
       sq.style.background = "color-mix(in srgb, " + col + " " + pct + "%, var(--surface-2))";
       sq.style.boxShadow = frac > 0 ? "0 0 " + Math.round(2 + 8 * frac) + "px color-mix(in srgb, " + col + " " + Math.round(70 * frac) + "%, transparent)" : "none";
-      sq.title = count + " of " + scheduled + " days this week";
-      // the number of days done this week (Settings → Layout → Numbers on trackers)
+      sq.title = count + " of " + scheduled + " days " + resetMode[2];
+      // the number of days done since the last reset (Settings → Layout → Numbers on trackers)
       if (setting("trackerNumbers", true) !== false) {
         sq.textContent = count;
         trackerNumberStyle(sq, pct >= 60);
@@ -10855,6 +10899,15 @@
     state.notes.push(n);
     saveState();
     if (state.selectedId === NOTES) renderNotesTree(); // leaves an open note and its cursor alone
+  };
+  // the PC app's Ctrl+Alt+T popup (main.dart): the to-do goes on the list without leaving what's open
+  window.__hbQuickTodo = function (text) {
+    text = String(text || "").trim();
+    if (!text) return;
+    state.todos.push({ id: uid(), text: text, done: false });
+    saveState();
+    if (state.selectedId !== NOTES && !hbBusy()) render(); // the notes page and a half-typed field stay as they are
+    else renderTodoRows();
   };
   var newNoteBackdrop = document.getElementById("newNoteBackdrop");
   // `folder` (optional) is picked to start with, e.g. a habit's folder from the + next to its description
